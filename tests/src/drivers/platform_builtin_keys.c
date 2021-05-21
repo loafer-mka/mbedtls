@@ -74,8 +74,9 @@ psa_status_t mbedtls_psa_platform_get_builtin_key(
 {
     psa_key_id_t app_key_id = MBEDTLS_SVC_KEY_ID_GET_KEY_ID( key_id );
     const mbedtls_psa_builtin_key_description_t *builtin_key;
+    size_t i;
 
-    for( size_t i = 0;
+    for( i = 0;
          i < ( sizeof( builtin_keys ) / sizeof( builtin_keys[0] ) ); i++ )
     {
         builtin_key = &builtin_keys[i];
