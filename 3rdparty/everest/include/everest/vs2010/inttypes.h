@@ -33,4 +33,10 @@
 
 #define PRIu64 "I64u"
 
+#if defined(WIN64) || defined(_WIN64)
+#	define PRIuPTR "I64u"
+#else
+#	define PRIuPTR "u"
+#endif
+
 #endif

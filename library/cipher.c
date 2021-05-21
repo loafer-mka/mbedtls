@@ -1528,11 +1528,13 @@ int mbedtls_cipher_auth_encrypt_ext( mbedtls_cipher_context_t *ctx,
     if( output_len < ilen + tag_len )
         return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
 
-    int ret = mbedtls_cipher_aead_encrypt( ctx, iv, iv_len, ad, ad_len,
-                                       input, ilen, output, olen,
-                                       output + ilen, tag_len );
-    *olen += tag_len;
-    return( ret );
+    {
+        int ret = mbedtls_cipher_aead_encrypt( ctx, iv, iv_len, ad, ad_len,
+                                           input, ilen, output, olen,
+                                           output + ilen, tag_len );
+        *olen += tag_len;
+        return( ret );
+    }
 #else
     return( MBEDTLS_ERR_CIPHER_FEATURE_UNAVAILABLE );
 #endif /* MBEDTLS_CIPHER_MODE_AEAD */
