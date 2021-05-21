@@ -20,6 +20,7 @@ import re
 import struct
 from typing import Dict, List, Optional, Set, Union
 import unittest
+import binascii
 
 from mbedtls_dev import c_build_helper
 
@@ -93,7 +94,6 @@ def as_expr(thing: Exprable) -> Expr:
     else:
         return Expr(thing)
 
-
 class Key:
     """Representation of a PSA crypto key object and its storage encoding.
     """
@@ -157,12 +157,14 @@ class Key:
             raise NotImplementedError
         return header + attributes + material
 
-    def hex(self) -> str:
+    @staticmethod
+    def hex(obj) -> str:
         """Return the representation of the key as a hexadecimal string.
 
         This is the hexadecimal representation of `self.bytes`.
+        if python 3.5 and greather, than bytes.hex() may be used.
         """
-        return self.bytes().hex()
+        return binascii.b2a_hex(obj).decode('ascii')
 
 
 class TestKey(unittest.TestCase):
