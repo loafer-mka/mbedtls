@@ -61,7 +61,9 @@ exit:
  */
 int buffer_is_all_zero( const uint8_t *buf, size_t size )
 {
-    for( size_t i = 0; i < size; i++ )
+    size_t i;
+
+    for( i = 0; i < size; i++ )
         if( buf[i] != 0 )
             return 0;
     return 1;

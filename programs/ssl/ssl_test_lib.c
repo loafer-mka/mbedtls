@@ -88,6 +88,8 @@ void rng_init( rng_context_t *rng )
 
 int rng_seed( rng_context_t *rng, int reproducible, const char *pers )
 {
+    int ret;
+
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
     if( reproducible )
     {
@@ -115,23 +117,25 @@ int rng_seed( rng_context_t *rng, int reproducible, const char *pers )
         srand( 1 );
 
 #if defined(MBEDTLS_CTR_DRBG_C)
-    int ret = mbedtls_ctr_drbg_seed( &rng->drbg,
+    ret = mbedtls_ctr_drbg_seed( &rng->drbg,
                                      f_entropy, &rng->entropy,
                                      (const unsigned char *) pers,
                                      strlen( pers ) );
 #elif defined(MBEDTLS_HMAC_DRBG_C)
+    {
 #if defined(MBEDTLS_SHA256_C)
-    const mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+        const mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
 #elif defined(MBEDTLS_SHA512_C)
-    const mbedtls_md_type_t md_type = MBEDTLS_MD_SHA512;
+        const mbedtls_md_type_t md_type = MBEDTLS_MD_SHA512;
 #else
 #error "No message digest available for HMAC_DRBG"
 #endif
-    int ret = mbedtls_hmac_drbg_seed( &rng->drbg,
+        ret = mbedtls_hmac_drbg_seed( &rng->drbg,
                                       mbedtls_md_info_from_type( md_type ),
                                       f_entropy, &rng->entropy,
                                       (const unsigned char *) pers,
                                       strlen( pers ) );
+    }
 #else /* !defined(MBEDTLS_CTR_DRBG_C) && !defined(MBEDTLS_HMAC_DRBG_C) */
 #error "No DRBG available"
 #endif /* !defined(MBEDTLS_CTR_DRBG_C) && !defined(MBEDTLS_HMAC_DRBG_C) */

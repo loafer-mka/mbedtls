@@ -1960,6 +1960,7 @@ void mac_sign( int key_type_arg,
         expected_mac->len,
         expected_mac->len + 1,
     };
+    size_t i;
 
     TEST_ASSERT( mac_buffer_size <= PSA_MAC_MAX_SIZE );
     /* We expect PSA_MAC_LENGTH to be exact. */
@@ -1974,7 +1975,7 @@ void mac_sign( int key_type_arg,
     PSA_ASSERT( psa_import_key( &attributes, key_data->x, key_data->len,
                                 &key ) );
 
-    for( size_t i = 0; i < ARRAY_LENGTH( output_sizes_to_test ); i++ )
+    for( i = 0; i < ARRAY_LENGTH( output_sizes_to_test ); i++ )
     {
         const size_t output_size = output_sizes_to_test[i];
         psa_status_t expected_status =
@@ -2024,6 +2025,7 @@ void mac_verify( int key_type_arg,
     psa_mac_operation_t operation = PSA_MAC_OPERATION_INIT;
     psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
     uint8_t *perturbed_mac = NULL;
+    size_t i;
 
     TEST_ASSERT( expected_mac->len <= PSA_MAC_MAX_SIZE );
 
@@ -2065,7 +2067,7 @@ void mac_verify( int key_type_arg,
                 PSA_ERROR_INVALID_SIGNATURE );
 
     /* Test changing one byte. */
-    for( size_t i = 0; i < expected_mac->len; i++ )
+    for( i = 0; i < expected_mac->len; i++ )
     {
         mbedtls_test_set_step( i );
         perturbed_mac[i] ^= 1;

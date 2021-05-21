@@ -1328,33 +1328,35 @@ static int ecp_normalize_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *p
 #if defined(MBEDTLS_ECP_NO_FALLBACK) && defined(MBEDTLS_ECP_NORMALIZE_JAC_ALT)
     return( MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE );
 #else
-    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-    mbedtls_mpi Zi, ZZi;
-    mbedtls_mpi_init( &Zi ); mbedtls_mpi_init( &ZZi );
+    {
+        int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+        mbedtls_mpi Zi, ZZi;
+        mbedtls_mpi_init( &Zi ); mbedtls_mpi_init( &ZZi );
 
-    /*
-     * X = X / Z^2  mod p
-     */
-    MBEDTLS_MPI_CHK( mbedtls_mpi_inv_mod( &Zi,      &pt->Z,     &grp->P ) );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &ZZi,     &Zi,        &Zi     ) );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &pt->X,   &pt->X,     &ZZi    ) );
+        /*
+         * X = X / Z^2  mod p
+         */
+        MBEDTLS_MPI_CHK( mbedtls_mpi_inv_mod( &Zi,      &pt->Z,     &grp->P ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &ZZi,     &Zi,        &Zi     ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &pt->X,   &pt->X,     &ZZi    ) );
 
-    /*
-     * Y = Y / Z^3  mod p
-     */
-    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &pt->Y,   &pt->Y,     &ZZi    ) );
-    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &pt->Y,   &pt->Y,     &Zi     ) );
+        /*
+         * Y = Y / Z^3  mod p
+         */
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &pt->Y,   &pt->Y,     &ZZi    ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mod( grp, &pt->Y,   &pt->Y,     &Zi     ) );
 
-    /*
-     * Z = 1
-     */
-    MBEDTLS_MPI_CHK( mbedtls_mpi_lset( &pt->Z, 1 ) );
+        /*
+         * Z = 1
+         */
+        MBEDTLS_MPI_CHK( mbedtls_mpi_lset( &pt->Z, 1 ) );
 
 cleanup:
 
-    mbedtls_mpi_free( &Zi ); mbedtls_mpi_free( &ZZi );
+        mbedtls_mpi_free( &Zi ); mbedtls_mpi_free( &ZZi );
 
-    return( ret );
+        return( ret );
+    }
 #endif /* !defined(MBEDTLS_ECP_NO_FALLBACK) || !defined(MBEDTLS_ECP_NORMALIZE_JAC_ALT) */
 }
 
@@ -1372,6 +1374,10 @@ cleanup:
 static int ecp_normalize_jac_many( const mbedtls_ecp_group *grp,
                                    mbedtls_ecp_point *T[], size_t T_size )
 {
+    size_t i;
+    mbedtls_mpi *c, u, Zi, ZZi;
+    int ret;
+
     if( T_size < 2 )
         return( ecp_normalize_jac( grp, *T ) );
 
@@ -1383,9 +1389,7 @@ static int ecp_normalize_jac_many( const mbedtls_ecp_group *grp,
 #if defined(MBEDTLS_ECP_NO_FALLBACK) && defined(MBEDTLS_ECP_NORMALIZE_JAC_MANY_ALT)
     return( MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE );
 #else
-    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-    size_t i;
-    mbedtls_mpi *c, u, Zi, ZZi;
+    ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
     if( ( c = mbedtls_calloc( T_size, sizeof( mbedtls_mpi ) ) ) == NULL )
         return( MBEDTLS_ERR_ECP_ALLOC_FAILED );
@@ -1499,6 +1503,9 @@ cleanup:
 static int ecp_double_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
                            const mbedtls_ecp_point *P )
 {
+    int ret;
+    mbedtls_mpi M, S, T, U;
+
 #if defined(MBEDTLS_SELF_TEST)
     dbl_count++;
 #endif
@@ -1511,8 +1518,7 @@ static int ecp_double_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
 #if defined(MBEDTLS_ECP_NO_FALLBACK) && defined(MBEDTLS_ECP_DOUBLE_JAC_ALT)
     return( MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE );
 #else
-    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-    mbedtls_mpi M, S, T, U;
+    ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
     mbedtls_mpi_init( &M ); mbedtls_mpi_init( &S ); mbedtls_mpi_init( &T ); mbedtls_mpi_init( &U );
 
@@ -1599,6 +1605,9 @@ cleanup:
 static int ecp_add_mixed( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
                           const mbedtls_ecp_point *P, const mbedtls_ecp_point *Q )
 {
+    int ret;
+    mbedtls_mpi T1, T2, T3, T4, X, Y, Z;
+
 #if defined(MBEDTLS_SELF_TEST)
     add_count++;
 #endif
@@ -1611,8 +1620,7 @@ static int ecp_add_mixed( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
 #if defined(MBEDTLS_ECP_NO_FALLBACK) && defined(MBEDTLS_ECP_ADD_MIXED_ALT)
     return( MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE );
 #else
-    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-    mbedtls_mpi T1, T2, T3, T4, X, Y, Z;
+    ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
     /*
      * Trivial cases: P == 0 or Q == 0 (case 1)

@@ -6610,14 +6610,15 @@ int mbedtls_ssl_config_defaults( mbedtls_ssl_config *conf,
             if( transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM )
                 conf->min_minor_ver = MBEDTLS_SSL_MINOR_VERSION_2;
 #endif
-            const int* default_ciphersuites = mbedtls_ssl_list_ciphersuites();
-            set_protocol_version_ciphersuites(conf, MBEDTLS_SSL_MINOR_VERSION_1,
-                                              default_ciphersuites);
-            set_protocol_version_ciphersuites(conf, MBEDTLS_SSL_MINOR_VERSION_2,
-                                              default_ciphersuites);
-            set_protocol_version_ciphersuites(conf, MBEDTLS_SSL_MINOR_VERSION_3,
-                                              default_ciphersuites);
-
+	    {
+                const int* default_ciphersuites = mbedtls_ssl_list_ciphersuites();
+                set_protocol_version_ciphersuites(conf, MBEDTLS_SSL_MINOR_VERSION_1,
+                                                  default_ciphersuites);
+                set_protocol_version_ciphersuites(conf, MBEDTLS_SSL_MINOR_VERSION_2,
+                                                  default_ciphersuites);
+                set_protocol_version_ciphersuites(conf, MBEDTLS_SSL_MINOR_VERSION_3,
+                                                  default_ciphersuites);
+	    }
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
             conf->cert_profile = &mbedtls_x509_crt_profile_default;
 #endif

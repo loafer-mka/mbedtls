@@ -366,16 +366,18 @@ psa_status_t psa_get_and_lock_key_slot( mbedtls_svc_key_id_t key,
     /* Loading keys from storage requires support for such a mechanism */
 #if defined(MBEDTLS_PSA_CRYPTO_STORAGE_C) || \
     defined(MBEDTLS_PSA_CRYPTO_BUILTIN_KEYS)
-    psa_key_id_t volatile_key_id;
+    {
+        psa_key_id_t volatile_key_id;
 
-    status = psa_get_empty_key_slot( &volatile_key_id, p_slot );
-    if( status != PSA_SUCCESS )
-        return( status );
+        status = psa_get_empty_key_slot( &volatile_key_id, p_slot );
+        if( status != PSA_SUCCESS )
+            return( status );
 
-    (*p_slot)->attr.id = key;
-    (*p_slot)->attr.lifetime = PSA_KEY_LIFETIME_PERSISTENT;
+        (*p_slot)->attr.id = key;
+        (*p_slot)->attr.lifetime = PSA_KEY_LIFETIME_PERSISTENT;
 
-    status = PSA_ERROR_DOES_NOT_EXIST;
+        status = PSA_ERROR_DOES_NOT_EXIST;
+    }
 #if defined(MBEDTLS_PSA_CRYPTO_BUILTIN_KEYS)
     /* Load keys in the 'builtin' range through their own interface */
     status = psa_load_builtin_key_into_slot( *p_slot );

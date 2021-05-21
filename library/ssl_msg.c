@@ -1087,9 +1087,10 @@ static void mbedtls_ssl_cf_memcpy_if_eq( unsigned char *dst,
     /* mask = c1 == c2 ? 0xff : 0x00 */
     const size_t equal = mbedtls_ssl_cf_bool_eq( c1, c2 );
     const unsigned char mask = (unsigned char) mbedtls_ssl_cf_mask_from_bit( equal );
+    size_t i;
 
     /* dst[i] = c1 == c2 ? src[i] : dst[i] */
-    for( size_t i = 0; i < len; i++ )
+    for( i = 0; i < len; i++ )
         dst[i] = ( src[i] & mask ) | ( dst[i] & ~mask );
 }
 
@@ -1581,42 +1582,44 @@ int mbedtls_ssl_decrypt_buf( mbedtls_ssl_context const *ssl,
             * validity of the padding, always perform exactly
             * `min(256,plaintext_len)` reads (but take into account
             * only the last `padlen` bytes for the padding check). */
-        size_t pad_count = 0;
-        volatile unsigned char* const check = data;
-
-        /* Index of first padding byte; it has been ensured above
-            * that the subtraction is safe. */
-        size_t const padding_idx = rec->data_len - padlen;
-        size_t const num_checks = rec->data_len <= 256 ? rec->data_len : 256;
-        size_t const start_idx = rec->data_len - num_checks;
-        size_t idx;
-
-        for( idx = start_idx; idx < rec->data_len; idx++ )
         {
-            /* pad_count += (idx >= padding_idx) &&
-                *              (check[idx] == padlen - 1);
-                */
-            const size_t mask = mbedtls_ssl_cf_mask_ge( idx, padding_idx );
-            const size_t equal = mbedtls_ssl_cf_bool_eq( check[idx],
+            size_t pad_count = 0;
+            volatile unsigned char* const check = data;
+
+            /* Index of first padding byte; it has been ensured above
+                * that the subtraction is safe. */
+            size_t const padding_idx = rec->data_len - padlen;
+            size_t const num_checks = rec->data_len <= 256 ? rec->data_len : 256;
+            size_t const start_idx = rec->data_len - num_checks;
+            size_t idx;
+
+            for( idx = start_idx; idx < rec->data_len; idx++ )
+            {
+                /* pad_count += (idx >= padding_idx) &&
+                    *              (check[idx] == padlen - 1);
+                    */
+                const size_t mask = mbedtls_ssl_cf_mask_ge( idx, padding_idx );
+                const size_t equal = mbedtls_ssl_cf_bool_eq( check[idx],
                                                             padlen - 1 );
-            pad_count += mask & equal;
-        }
-        correct &= mbedtls_ssl_cf_bool_eq( pad_count, padlen );
+                pad_count += mask & equal;
+            }
+            correct &= mbedtls_ssl_cf_bool_eq( pad_count, padlen );
 
 #if defined(MBEDTLS_SSL_DEBUG_ALL)
-        if( padlen > 0 && correct == 0 )
-            MBEDTLS_SSL_DEBUG_MSG( 1, ( "bad padding byte detected" ) );
+            if( padlen > 0 && correct == 0 )
+                MBEDTLS_SSL_DEBUG_MSG( 1, ( "bad padding byte detected" ) );
 #endif
-        padlen &= mbedtls_ssl_cf_mask_from_bit( correct );
+            padlen &= mbedtls_ssl_cf_mask_from_bit( correct );
 
-#endif /* MBEDTLS_SSL_PROTO_TLS1 || MBEDTLS_SSL_PROTO_TLS1_1 || \
-          MBEDTLS_SSL_PROTO_TLS1_2 */
+#endif      /* MBEDTLS_SSL_PROTO_TLS1 || MBEDTLS_SSL_PROTO_TLS1_1 || \
+               MBEDTLS_SSL_PROTO_TLS1_2 */
 
-        /* If the padding was found to be invalid, padlen == 0
-         * and the subtraction is safe. If the padding was found valid,
-         * padlen hasn't been changed and the previous assertion
-         * data_len >= padlen still holds. */
-        rec->data_len -= padlen;
+            /* If the padding was found to be invalid, padlen == 0
+             * and the subtraction is safe. If the padding was found valid,
+             * padlen hasn't been changed and the previous assertion
+             * data_len >= padlen still holds. */
+            rec->data_len -= padlen;
+        }
     }
     else
 #endif /* MBEDTLS_SSL_SOME_SUITES_USE_CBC */
@@ -1669,23 +1672,25 @@ int mbedtls_ssl_decrypt_buf( mbedtls_ssl_context const *ssl,
             * Note that max_len + maclen is never more than the buffer
             * length, as we previously did in_msglen -= maclen too.
             */
-        const size_t max_len = rec->data_len + padlen;
-        const size_t min_len = ( max_len > 256 ) ? max_len - 256 : 0;
+    {
+            const size_t max_len = rec->data_len + padlen;
+            const size_t min_len = ( max_len > 256 ) ? max_len - 256 : 0;
 
-        ret = mbedtls_ssl_cf_hmac( &transform->md_ctx_dec,
+            ret = mbedtls_ssl_cf_hmac( &transform->md_ctx_dec,
                                     add_data, add_data_len,
                                     data, rec->data_len, min_len, max_len,
                                     mac_expect );
-        if( ret != 0 )
-        {
-            MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_ssl_cf_hmac", ret );
-            return( ret );
-        }
+            if( ret != 0 )
+            {
+                MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_ssl_cf_hmac", ret );
+                return( ret );
+            }
 
-        mbedtls_ssl_cf_memcpy_offset( mac_peer, data,
+            mbedtls_ssl_cf_memcpy_offset( mac_peer, data,
                                         rec->data_len,
                                         min_len, max_len,
                                         transform->maclen );
+    }
 #endif /* MBEDTLS_SSL_PROTO_TLS1 || MBEDTLS_SSL_PROTO_TLS1_1 || \
               MBEDTLS_SSL_PROTO_TLS1_2 */
 
