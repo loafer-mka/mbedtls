@@ -20,6 +20,7 @@ generate only the specified files.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import binascii
 import argparse
 import os
 import posixpath
@@ -258,7 +259,7 @@ class StorageFormat:
         tc.set_dependencies(dependencies)
         tc.set_function('key_storage_' + verb)
         if self.forward:
-            extra_arguments = []
+            extra_arguments = ''
         else:
             # Some test keys have the RAW_DATA type and attributes that don't
             # necessarily make sense. We do this to validate numerical
@@ -266,13 +267,13 @@ class StorageFormat:
             # Raw data keys have no useful exercise anyway so there is no
             # loss of test coverage.
             exercise = key.type.string != 'PSA_KEY_TYPE_RAW_DATA'
-            extra_arguments = ['1' if exercise else '0']
+            extra_arguments = '1' if exercise else '0'
         tc.set_arguments([key.lifetime.string,
                           key.type.string, str(key.bits),
                           key.usage.string, key.alg.string, key.alg2.string,
-                          '"' + key.material.hex() + '"',
-                          '"' + key.hex() + '"',
-                          *extra_arguments])
+                          '"' + key.hex(key.material) + '"',
+                          '"' + key.hex(key.bytes()) + '"',
+                          extra_arguments])
         return tc
 
     def key_for_usage_flags(
