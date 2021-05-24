@@ -11,10 +11,14 @@ mbedTLS.sln
 # Visual Studio artifacts
 /.localhistory/
 /.vs/
-_Win32_Debug
-_Win32_Release
+_Win32_Debug/
+_Win32_Release/
+_Win32_DebugSRT/
+_Win32_ReleaseSRT/
 _x64_Debug/
 _x64_Release/
+_x64_DebugSRT/
+_x64_ReleaseSRT/
 /Debug/
 /Release/
 /*.vcxproj.filters
