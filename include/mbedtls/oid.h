@@ -627,6 +627,17 @@ int mbedtls_oid_get_oid_by_md( mbedtls_md_type_t md_alg, const char **oid, size_
  * \return         0 if successful, or MBEDTLS_ERR_OID_NOT_FOUND
  */
 int mbedtls_oid_get_cipher_alg( const mbedtls_asn1_buf *oid, mbedtls_cipher_type_t *cipher_alg );
+
+/**
+ * \brief          Translate encryption algorithm OID into cipher_type
+ *
+ * \param cipher_alg    cipher algorithm
+ * \param oid      place to store ASN.1 OID string pointer
+ * \param olen     length of the OID
+ *
+ * \return         0 if successful, or MBEDTLS_ERR_OID_NOT_FOUND
+ */
+int mbedtls_oid_get_oid_by_cipher_alg( mbedtls_cipher_type_t cipher_alg, const char **oid, size_t *olen );
 #endif /* MBEDTLS_CIPHER_C */
 
 #if defined(MBEDTLS_PKCS12_C)

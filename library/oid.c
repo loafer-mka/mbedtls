@@ -592,6 +592,7 @@ static const oid_cipher_alg_t oid_cipher_alg[] =
 
 FN_OID_TYPED_FROM_ASN1(oid_cipher_alg_t, cipher_alg, oid_cipher_alg)
 FN_OID_GET_ATTR1(mbedtls_oid_get_cipher_alg, oid_cipher_alg_t, cipher_alg, mbedtls_cipher_type_t, cipher_alg)
+FN_OID_GET_OID_BY_ATTR1(mbedtls_oid_get_oid_by_cipher_alg, oid_cipher_alg_t, oid_cipher_alg, mbedtls_cipher_type_t, cipher_alg)
 #endif /* MBEDTLS_CIPHER_C */
 
 #if defined(MBEDTLS_MD_C)
