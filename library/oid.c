@@ -585,6 +585,14 @@ static const oid_cipher_alg_t oid_cipher_alg[] =
         MBEDTLS_CIPHER_DES_EDE3_CBC,
     },
     {
+        OID_DESCRIPTOR( MBEDTLS_OID_AES128_CBC,              "aes128-cbc",       "AES128-CBC" ),
+        MBEDTLS_CIPHER_AES_128_CBC,
+    },
+    {
+        OID_DESCRIPTOR( MBEDTLS_OID_AES256_CBC,              "aes256-cbc",       "AES256-CBC" ),
+        MBEDTLS_CIPHER_AES_256_CBC,
+    },
+    {
         NULL_OID_DESCRIPTOR,
         MBEDTLS_CIPHER_NONE,
     },
@@ -592,6 +600,7 @@ static const oid_cipher_alg_t oid_cipher_alg[] =
 
 FN_OID_TYPED_FROM_ASN1(oid_cipher_alg_t, cipher_alg, oid_cipher_alg)
 FN_OID_GET_ATTR1(mbedtls_oid_get_cipher_alg, oid_cipher_alg_t, cipher_alg, mbedtls_cipher_type_t, cipher_alg)
+FN_OID_GET_OID_BY_ATTR1(mbedtls_oid_get_oid_by_cipher_alg, oid_cipher_alg_t, oid_cipher_alg, mbedtls_cipher_type_t, cipher_alg)
 #endif /* MBEDTLS_CIPHER_C */
 
 #if defined(MBEDTLS_MD_C)
@@ -717,6 +726,7 @@ static const oid_md_hmac_t oid_md_hmac[] =
 
 FN_OID_TYPED_FROM_ASN1(oid_md_hmac_t, md_hmac, oid_md_hmac)
 FN_OID_GET_ATTR1(mbedtls_oid_get_md_hmac, oid_md_hmac_t, md_hmac, mbedtls_md_type_t, md_hmac)
+FN_OID_GET_OID_BY_ATTR1(mbedtls_oid_get_oid_by_md_hmac, oid_md_hmac_t, oid_md_hmac, mbedtls_md_type_t, md_hmac)
 #endif /* MBEDTLS_MD_C */
 
 #if defined(MBEDTLS_PKCS12_C)

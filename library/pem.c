@@ -73,7 +73,7 @@ static int pem_get_iv( const unsigned char *s, unsigned char *iv,
     return( 0 );
 }
 
-static int pem_pbkdf1( unsigned char *key, size_t keylen,
+int mbedtls_pem_pbkdf1( unsigned char *key, size_t keylen,
                        unsigned char *iv,
                        const unsigned char *pwd, size_t pwdlen )
 {
@@ -145,7 +145,7 @@ static int pem_des_decrypt( unsigned char des_iv[8],
 
     mbedtls_des_init( &des_ctx );
 
-    if( ( ret = pem_pbkdf1( des_key, 8, des_iv, pwd, pwdlen ) ) != 0 )
+    if( ( ret = mbedtls_pem_pbkdf1( des_key, 8, des_iv, pwd, pwdlen ) ) != 0 )
         goto exit;
 
     if( ( ret = mbedtls_des_setkey_dec( &des_ctx, des_key ) ) != 0 )
@@ -173,7 +173,7 @@ static int pem_des3_decrypt( unsigned char des3_iv[8],
 
     mbedtls_des3_init( &des3_ctx );
 
-    if( ( ret = pem_pbkdf1( des3_key, 24, des3_iv, pwd, pwdlen ) ) != 0 )
+    if( ( ret = mbedtls_pem_pbkdf1( des3_key, 24, des3_iv, pwd, pwdlen ) ) != 0 )
         goto exit;
 
     if( ( ret = mbedtls_des3_set3key_dec( &des3_ctx, des3_key ) ) != 0 )
@@ -203,7 +203,7 @@ static int pem_aes_decrypt( unsigned char aes_iv[16], unsigned int keylen,
 
     mbedtls_aes_init( &aes_ctx );
 
-    if( ( ret = pem_pbkdf1( aes_key, keylen, aes_iv, pwd, pwdlen ) ) != 0 )
+    if( ( ret = mbedtls_pem_pbkdf1( aes_key, keylen, aes_iv, pwd, pwdlen ) ) != 0 )
         goto exit;
 
     if( ( ret = mbedtls_aes_setkey_dec( &aes_ctx, aes_key, keylen * 8 ) ) != 0 )
