@@ -1158,14 +1158,14 @@ static int pk_parse_key_pkcs8_encrypted_der(
             if( ret == MBEDTLS_ERR_PKCS12_PASSWORD_MISMATCH )
                 return( MBEDTLS_ERR_PK_PASSWORD_MISMATCH );
 
+            return( ret );
+        } else {
             // Best guess for password mismatch when using RC4. If first tag is
             // not MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE
             //
             if( cipher_alg == MBEDTLS_CIPHER_ARC4_128 && *buf != ( MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) )
                 return( MBEDTLS_ERR_PK_PASSWORD_MISMATCH );
-
-            return( ret );
-        }
+	}
 
         decrypted = 1;
     }
