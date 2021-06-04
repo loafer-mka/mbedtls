@@ -31,6 +31,10 @@
 
 #include "mbedtls/md.h"
 
+#if defined( MBEDTLS_PK_WRITE_C )
+#include "mbedtls/cipher.h"
+#endif
+
 #if defined(MBEDTLS_RSA_C)
 #include "mbedtls/rsa.h"
 #endif
@@ -187,6 +191,15 @@ typedef struct mbedtls_pk_context
     const mbedtls_pk_info_t *   pk_info; /**< Public key information         */
     void *                      pk_ctx;  /**< Underlying public key context  */
 } mbedtls_pk_context;
+
+/**
+ * \brief           Encryption scheme for pkcs8 private key format
+ */
+typedef enum mbedtls_pbes_t {
+    ENCRYPTION_SCHEME_PBES2 = 0,
+    ENCRYPTION_SCHEME_PKCS12,
+    ENCRYPTION_SCHEME_PBES1
+} mbedtls_pbes_t;
 
 #if defined(MBEDTLS_ECDSA_C) && defined(MBEDTLS_ECP_RESTARTABLE)
 /**
@@ -763,6 +776,52 @@ int mbedtls_pk_parse_public_keyfile( mbedtls_pk_context *ctx, const char *path )
 int mbedtls_pk_write_key_der( const mbedtls_pk_context *ctx, unsigned char *buf, size_t size );
 
 /**
+ * \brief            Write a private key to a plain PKCS#8 DER string.
+ *                   Note: data is written at the end of the buffer! Use the
+ *                         return value to determine where you should start
+ *                         using the buffer
+ *
+ * \param ctx        PK context which must contain a valid private key.
+ * \param buf       buffer to write to
+ * \param size      size of the buffer
+ *
+ * \return          length of data written if successful, or a specific
+ *                  error code
+ */
+int mbedtls_pk_write_key_pkcs8_der( const mbedtls_pk_context *key, unsigned char *buf, size_t size );
+
+/**
+ * \brief            Write a private key to a encrypted PKCS#8 DER string.
+ *                   Note: data is written somewhere inside the buffer! Use the
+ *                         value of \c pder_buf to determine where you should
+ *                         start using the buffer
+ *
+ * \param ctx        PK context which must contain a valid private key.
+ * \param key_fmt    Ecryptions scheme (PKCS#5 PBES2, PKCS#12 or PKCS#5 PBES1)
+ * \param pder_buf   Pointer to the buffer to write to. The output includes a
+ *                   terminating null byte. Pointer will be updated before return
+ *                   to actual begin of pkcs#8 key inside buffer.
+ * \param der_size   Size of the buffer in bytes,
+ *                   it will contain actual size of PEM data.
+ * \param enc_alg    Cipher algorithm
+ * \param md_alg     Hash algorithm used
+ * \param iterations Iteration count (for key derivation)
+ * \param pwd        Password for encryption.
+ *                   The empty password is not supported.
+ * \param pwd_len    Size of the password in bytes.
+ * \param f_rng      RNG function
+ * \param p_rng      RNG parameter
+ *
+ * \return          length of data written if successful, or a specific
+ *                  error code
+ */
+int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
+        mbedtls_pbes_t key_format, unsigned char **pder_buf, size_t der_size,
+        mbedtls_cipher_type_t enc_alg, mbedtls_md_type_t md_alg, int repeats,
+        const unsigned char *pwd, size_t pwd_len,
+        int (*f_rng)(void *, unsigned char *, size_t), void *p_rng );
+
+/**
  * \brief           Write a public key to a SubjectPublicKeyInfo DER structure
  *                  Note: data is written at the end of the buffer! Use the
  *                        return value to determine where you should start
@@ -801,6 +860,72 @@ int mbedtls_pk_write_pubkey_pem( const mbedtls_pk_context *ctx, unsigned char *b
  * \return          0 if successful, or a specific error code
  */
 int mbedtls_pk_write_key_pem( const mbedtls_pk_context *ctx, unsigned char *buf, size_t size );
+
+/**
+ * \brief           Write a private key to a PKCS#8 PEM string
+ *
+ * \param ctx       PK context which must contain a valid private key.
+ * \param buf       Buffer to write to. The output includes a
+ *                  terminating null byte.
+ * \param size      Size of the buffer in bytes.
+ *
+ * \return          0 if successful, or a specific error code
+ */
+int mbedtls_pk_write_key_pkcs8_pem( const mbedtls_pk_context *key, unsigned char *buf, size_t size );
+
+
+/**
+ * \brief           Write a private key to a encrypted 'traditional' PEM string like as:
+ *                  -----BEGIN RSA PRIVATE KEY-----
+ *                  Proc-Type: 4,ENCRYPTED
+ *                  DEK-Info: AES-128-CBC,...
+ *
+ * \param ctx       PK context which must contain a valid private key.
+ * \param buf       Buffer to write to. The output includes a
+ *                  terminating null byte.
+ * \param psize     Pointer to the size of the buffer in bytes,
+ *                  it will contain actual size of PEM data.
+ * \param enc_alg   Cipher algorithm
+ * \param pwd       Password for encryption.
+ *                  The empty password is not supported.
+ * \param pwdlen    Size of the password in bytes.
+ * \param f_rng     RNG function
+ * \param p_rng     RNG parameter
+ *
+ * \return          0 if successful, or a specific error code
+ */
+int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx, 
+         unsigned char *buf, size_t *psize, mbedtls_cipher_type_t enc_alg, 
+         const unsigned char *pwd, size_t pwd_len,
+         int (*f_rng)(void *, unsigned char *, size_t), void *p_rng );
+
+/**
+ * \brief            Write a private key to a encrypted PKCS#8 PEM string.
+ *
+ * \param ctx        PK context which must contain a valid private key.
+ * \param key_fmt    Ecryptions scheme (PKCS#5 PBES2, PKCS#12 or PKCS#5 PBES1)
+ * \param buf        Buffer to write to. The output includes a
+ *                   terminating null byte.
+ * \param psize      Pointer to the size of the buffer in bytes,
+ *                   it will contain actual size of PEM data.
+ * \param enc_alg    Cipher algorithm
+ * \param md_alg     Hash algorithm used
+ * \param iterations Iteration count (for key derivation)
+ * \param pwd        Password for encryption.
+ *                   The empty password is not supported.
+ * \param pwd_len    Size of the password in bytes.
+ * \param f_rng      RNG function
+ * \param p_rng      RNG parameter
+ *
+ * \return          0 if successful, or a specific error code
+ */
+int mbedtls_pk_write_key_pkcs8_encrypted_pem( const mbedtls_pk_context *ctx, 
+         mbedtls_pbes_t key_fmt, unsigned char *buf, size_t *psize, 
+         mbedtls_cipher_type_t enc_alg, mbedtls_md_type_t md_alg, int iterations,
+         const unsigned char *pwd, size_t pwd_len,
+         int (*f_rng)(void *, unsigned char *, size_t), void *p_rng );
+
+
 #endif /* MBEDTLS_PEM_WRITE_C */
 #endif /* MBEDTLS_PK_WRITE_C */
 
@@ -837,6 +962,23 @@ int mbedtls_pk_parse_subpubkey( unsigned char **p, const unsigned char *end,
  */
 int mbedtls_pk_write_pubkey( unsigned char **p, unsigned char *start,
                      const mbedtls_pk_context *key );
+
+/**
+ * \brief           Write a private key to ASN.1 data
+ *                  Note: function works backwards in data buffer
+ *
+ * \param p              reference to current position pointer
+ * \param start          start of the buffer (for bounds-checking)
+ * \param has_parameters if 1 then ECC key data will conatin parameters record;
+ *                       (this is used for pkcs8 key format when parameters are
+ *                       stored in common pkcs8 header).
+ * \param key            PK context which must contain a valid public or private key.
+ *
+ * \return          the length written or a negative error code
+ */
+int mbedtls_pk_write_key( unsigned char **p, unsigned char *start,
+                          int has_parameters, const mbedtls_pk_context *key );
+
 #endif /* MBEDTLS_PK_WRITE_C */
 
 /*
