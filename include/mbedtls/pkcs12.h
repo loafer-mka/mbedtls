@@ -121,6 +121,34 @@ int mbedtls_pkcs12_derivation( unsigned char *data, size_t datalen,
                        const unsigned char *salt, size_t saltlen,
                        mbedtls_md_type_t mbedtls_md, int id, int iterations );
 
+/**
+ * \brief            The PKCS#12 derivation function uses a password and a salt
+ *                   to produce pseudo-random bits for a particular "purpose".
+ *
+ *                   Depending on the given id, this function can produce an
+ *                   encryption/decryption key, an nitialization vector or an
+ *                   integrity key.
+ *
+ * \param md_type    mbedtls_md type to use during the derivation
+ * \param pwd        password to use (may be NULL if no password is used)
+ * \param pwdlen     length of the password (may be 0)
+ * \param salt       salt data
+ * \param saltlen    length of the salt
+ * \param iterations number of iterations
+ * \param key        key buffer to use
+ * \param keylen     length of the key buffer
+ * \param iv         initial vector buffer to use
+ * \param ivlen      length of the iv buffer
+ *
+ * \return          0 if successful, or a MD, BIGNUM type error.
+ */
+int mbedtls_pkcs12_pbkdf( mbedtls_md_type_t md_type,
+                          const unsigned char *pwd,  size_t pwdlen,
+                          const unsigned char *salt,  size_t saltlen, int iterations,
+                          unsigned char *key, size_t keylen,
+                          unsigned char *iv,  size_t ivlen );
+
+
 #ifdef __cplusplus
 }
 #endif

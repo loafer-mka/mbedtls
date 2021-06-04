@@ -668,6 +668,46 @@ int mbedtls_oid_get_oid_by_cipher_alg( mbedtls_cipher_type_t cipher_alg, const c
  */
 int mbedtls_oid_get_pkcs12_pbe_alg( const mbedtls_asn1_buf *oid, mbedtls_md_type_t *md_alg,
                             mbedtls_cipher_type_t *cipher_alg );
+/**
+ * \brief          Translate md_type and cipher_type into PKCS#12 PBE
+ *                 algorithm OID
+ *
+ * \param md_alg        message digest algorithm
+ * \param cipher_alg    cipher algorithm
+ * \param oid           place to store ASN.1 OID string pointer
+ * \param olen          length of the OID
+ *
+ * \return         0 if successful, or MBEDTLS_ERR_OID_NOT_FOUND
+ */
+int mbedtls_oid_get_oid_by_pkcs12_pbe_alg( mbedtls_md_type_t md_alg,
+             mbedtls_cipher_type_t cipher_alg, const char **oid, size_t *olen );
+
+
+/**
+ * \brief          Translate PKCS#5 PBES1 algorithm OID into md_type and
+ *                 cipher_type
+ *
+ * \param oid           OID to use
+ * \param md_alg        place to store message digest algorithm
+ * \param cipher_alg    place to store cipher algorithm
+ *
+ * \return         0 if successful, or MBEDTLS_ERR_OID_NOT_FOUND
+ */
+int mbedtls_oid_get_pkcs5_pbes1_alg( const mbedtls_asn1_buf *oid, mbedtls_md_type_t *md_alg,
+                            mbedtls_cipher_type_t *cipher_alg );
+/**
+ * \brief          Translate md_type and cipher_type into PKCS#5 PBES1
+ *                 algorithm OID
+ *
+ * \param md_alg        message digest algorithm
+ * \param cipher_alg    cipher algorithm
+ * \param oid           place to store ASN.1 OID string pointer
+ * \param olen          length of the OID
+ *
+ * \return         0 if successful, or MBEDTLS_ERR_OID_NOT_FOUND
+ */
+int mbedtls_oid_get_oid_by_pkcs5_pbes1_alg( mbedtls_md_type_t md_alg,
+             mbedtls_cipher_type_t cipher_alg, const char **oid, size_t *olen );
 #endif /* MBEDTLS_PKCS12_C */
 
 #ifdef __cplusplus

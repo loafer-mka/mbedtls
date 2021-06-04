@@ -32,6 +32,7 @@
 
 #include "mbedtls/asn1.h"
 #include "mbedtls/md.h"
+#include "mbedtls/cipher.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -68,6 +69,24 @@ int mbedtls_pkcs5_pbes2( const mbedtls_asn1_buf *pbe_params, int mode,
                  const unsigned char *data, size_t datalen,
                  unsigned char *output );
 
+/**
+ * \brief          PKCS#5 PBES1 function
+ *
+ * \param pbe_params the ASN.1 algorithm parameters
+ * \param mode       either MBEDTLS_PKCS5_DECRYPT or MBEDTLS_PKCS5_ENCRYPT
+ * \param pwd        password to use when generating key
+ * \param pwdlen     length of password
+ * \param data       data to process
+ * \param datalen    length of data
+ * \param output     output buffer
+ *
+ * \returns        0 on success, or a MBEDTLS_ERR_XXX code if verification fails.
+ */
+int mbedtls_pkcs5_pbes1( const mbedtls_asn1_buf *pbe_params, int mode,
+                 mbedtls_cipher_type_t cipher_type, mbedtls_md_type_t md_type,
+                 const unsigned char *pwd,  size_t pwdlen,
+                 const unsigned char *data, size_t datalen,
+                 unsigned char *output );
 #endif /* MBEDTLS_ASN1_PARSE_C */
 
 /**
@@ -88,6 +107,25 @@ int mbedtls_pkcs5_pbkdf2_hmac( mbedtls_md_context_t *ctx, const unsigned char *p
                        size_t plen, const unsigned char *salt, size_t slen,
                        unsigned int iteration_count,
                        uint32_t key_length, unsigned char *output );
+
+/**
+ * \brief          PKCS#5 PBKDF1 function
+ *
+ * \param md_type  The message digest used
+ * \param salt     Salt to use when generating key
+ * \param slen     Length of salt
+ * \param password Password to use when generating key
+ * \param plen     Length of password
+ * \param iteration_count       Iteration count
+ * \param key      Buffer to accept generated key, 8 bytes at least
+ * \param iv       Buffer to accept generated initial vector, 8 bytes at least
+ *
+ * \returns        0 on success, or a MBEDTLS_ERR_XXX code if verification fails.
+ */
+int mbedtls_pkcs5_pbkdf1( mbedtls_md_type_t md_type, const unsigned char *salt,
+                          size_t slen, int iterations,
+                          const unsigned char *password, size_t plen,
+                          unsigned char *key, unsigned char *iv );
 
 #if defined(MBEDTLS_SELF_TEST)
 

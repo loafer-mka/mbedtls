@@ -213,6 +213,106 @@ exit:
 
     return( ret );
 }
+
+static int pkcs5_parse_pbkdf1_params( const mbedtls_asn1_buf *params,
+                                      mbedtls_asn1_buf *salt, int *iterations )
+{
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+    unsigned char *p = params->p;
+    const unsigned char *end = params->p + params->len;
+
+    if( params->tag != ( MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT,
+                MBEDTLS_ERR_ASN1_UNEXPECTED_TAG ) );
+    /*
+     *  PBKDF1-params ::= SEQUENCE {
+     *    salt              OCTET STRING,
+     *    iterationCount    INTEGER
+     *  }
+     */
+    salt->tag = *p;
+    if( ( ret = mbedtls_asn1_get_tag( &p, end, &salt->len,
+                                      MBEDTLS_ASN1_OCTET_STRING ) ) != 0 )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret ) );
+
+    salt->p = p;
+    p += salt->len;
+
+    if( ( ret = mbedtls_asn1_get_int( &p, end, iterations ) ) != 0 )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret ) );
+
+    if( p != end )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT,
+                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH ) );
+
+    return( 0 );
+}
+
+int mbedtls_pkcs5_pbes1( const mbedtls_asn1_buf *pbe_params, int mode,
+                mbedtls_cipher_type_t cipher_type, mbedtls_md_type_t md_type,
+                const unsigned char *pwd,  size_t pwdlen,
+                const unsigned char *data, size_t len,
+                unsigned char *output )
+{
+    int ret, keylen = 0, iterations = 2048;
+    unsigned char key[8];  /* 16 for MD2 and MD5; 20 for SHA1 */
+    unsigned char iv[8];
+    mbedtls_asn1_buf salt;
+    const mbedtls_cipher_info_t *cipher_info;
+    mbedtls_cipher_context_t cipher_ctx;
+    size_t olen = 0, md_len = 0;
+
+    cipher_info = mbedtls_cipher_info_from_type( cipher_type );
+    if( cipher_info == NULL )
+        return( MBEDTLS_ERR_PKCS5_FEATURE_UNAVAILABLE );
+
+    keylen = cipher_info->key_bitlen / 8;
+    if( keylen != 8 )
+        return( MBEDTLS_ERR_PKCS5_BAD_INPUT_DATA );
+
+    if( ( ret = pkcs5_parse_pbkdf1_params( pbe_params,
+                                           &salt, &iterations ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    if( ( ret = mbedtls_pkcs5_pbkdf1( md_type, salt.p, salt.len, iterations,
+                                      pwd, pwdlen, key, iv ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    mbedtls_cipher_init( &cipher_ctx );
+
+    if( ( ret = mbedtls_cipher_setup( &cipher_ctx, cipher_info ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_cipher_setkey( &cipher_ctx, key, 8 * keylen, (mbedtls_operation_t) mode ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_cipher_set_iv( &cipher_ctx, iv, sizeof(iv) ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_cipher_reset( &cipher_ctx ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_cipher_update( &cipher_ctx, data, len,
+                                output, &olen ) ) != 0 )
+    {
+        goto exit;
+    }
+
+    if( ( ret = mbedtls_cipher_finish( &cipher_ctx, output + olen, &olen ) ) != 0 )
+        ret = MBEDTLS_ERR_PKCS5_PASSWORD_MISMATCH;
+
+exit:
+    mbedtls_platform_zeroize( key, sizeof( key ) );
+    mbedtls_platform_zeroize( iv, sizeof( iv ) );
+    mbedtls_cipher_free( &cipher_ctx );
+
+    return( ret );
+}
+
 #endif /* MBEDTLS_ASN1_PARSE_C */
 
 int mbedtls_pkcs5_pbkdf2_hmac( mbedtls_md_context_t *ctx,
@@ -295,6 +395,55 @@ cleanup:
     mbedtls_platform_zeroize( md1, MBEDTLS_MD_MAX_SIZE );
 
     return( ret );
+}
+
+int mbedtls_pkcs5_pbkdf1( mbedtls_md_type_t md_type, const unsigned char *salt,
+                          size_t salt_len, int iterations,
+                          const unsigned char *pwd, size_t pwd_len,
+                          unsigned char *key, unsigned char *iv )
+{
+    const mbedtls_md_info_t *md_info;
+    mbedtls_md_context_t md_ctx;
+    size_t md_len;
+    int i, ret;
+    unsigned char md[20]; /* 16 for MD2 and MD5; 20 for SHA1 */
+
+    if( md_type != MBEDTLS_MD_MD2 && md_type != MBEDTLS_MD_MD5 && md_type != MBEDTLS_MD_SHA1 )
+        return( MBEDTLS_ERR_PKCS5_FEATURE_UNAVAILABLE );
+
+    md_info = mbedtls_md_info_from_type( md_type );
+    if( md_info == NULL )
+        return( MBEDTLS_ERR_PKCS5_FEATURE_UNAVAILABLE );
+
+    md_len = mbedtls_md_get_size( md_info );
+    if ( md_len != 16 && md_len != 20 )
+        return( MBEDTLS_ERR_PKCS5_FEATURE_UNAVAILABLE );
+
+    mbedtls_md_init( &md_ctx );
+    if( ( ret = mbedtls_md_setup( &md_ctx, md_info, 0 ) ) != 0 )
+        return( ret );
+
+    if( ( ret = mbedtls_md_starts( &md_ctx ) ) != 0 )
+        return( ret );
+    if( ( ret = mbedtls_md_update( &md_ctx, pwd, pwd_len ) ) != 0 )
+        return( ret );
+    if( ( ret = mbedtls_md_update( &md_ctx, salt, salt_len ) ) != 0 )
+        return( ret );
+    if( ( ret = mbedtls_md_finish( &md_ctx, md ) ) != 0 )
+        return( ret );
+
+    for ( i = 1; i < iterations; i++ ) {
+        if( ( ret = mbedtls_md_starts( &md_ctx ) ) != 0 )
+            return( ret );
+        if( ( ret = mbedtls_md_update( &md_ctx, md, md_len ) ) != 0 )
+            return( ret );
+        if( ( ret = mbedtls_md_finish( &md_ctx, md ) ) != 0 )
+            return( ret );
+    }
+    memcpy( key, md, 8 );
+    memcpy( iv, md + 8, 8 );
+    mbedtls_platform_zeroize( md, sizeof( md ) );
+    return( 0 );
 }
 
 #if defined(MBEDTLS_SELF_TEST)

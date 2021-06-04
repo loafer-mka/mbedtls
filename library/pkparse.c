@@ -1158,33 +1158,35 @@ static int pk_parse_key_pkcs8_encrypted_der(
             if( ret == MBEDTLS_ERR_PKCS12_PASSWORD_MISMATCH )
                 return( MBEDTLS_ERR_PK_PASSWORD_MISMATCH );
 
+            // Best guess for password mismatch when using RC4. If first tag is
+            // not MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE
+            //
+            if( cipher_alg == MBEDTLS_CIPHER_ARC4_128 && *buf != ( MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) )
+                return( MBEDTLS_ERR_PK_PASSWORD_MISMATCH );
+
             return( ret );
         }
-
-        decrypted = 1;
-    }
-    else if( MBEDTLS_OID_CMP( MBEDTLS_OID_PKCS12_PBE_SHA1_RC4_128, &pbe_alg_oid ) == 0 )
-    {
-        if( ( ret = mbedtls_pkcs12_pbe_sha1_rc4_128( &pbe_params,
-                                             MBEDTLS_PKCS12_PBE_DECRYPT,
-                                             pwd, pwdlen,
-                                             p, len, buf ) ) != 0 )
-        {
-            return( ret );
-        }
-
-        // Best guess for password mismatch when using RC4. If first tag is
-        // not MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE
-        //
-        if( *buf != ( MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) )
-            return( MBEDTLS_ERR_PK_PASSWORD_MISMATCH );
 
         decrypted = 1;
     }
     else
 #endif /* MBEDTLS_PKCS12_C */
 #if defined(MBEDTLS_PKCS5_C)
-    if( MBEDTLS_OID_CMP( MBEDTLS_OID_PKCS5_PBES2, &pbe_alg_oid ) == 0 )
+    if( mbedtls_oid_get_pkcs5_pbes1_alg( &pbe_alg_oid, &md_alg, &cipher_alg ) == 0 )
+    {
+        if( ( ret = mbedtls_pkcs5_pbes1( &pbe_params, MBEDTLS_PKCS5_DECRYPT,
+                                cipher_alg, md_alg,
+                                pwd, pwdlen, p, len, buf ) ) != 0 )
+        {
+            if( ret == MBEDTLS_ERR_PKCS12_PASSWORD_MISMATCH )
+                return( MBEDTLS_ERR_PK_PASSWORD_MISMATCH );
+
+            return( ret );
+        }
+
+        decrypted = 1;
+    }
+    else if( MBEDTLS_OID_CMP( MBEDTLS_OID_PKCS5_PBES2, &pbe_alg_oid ) == 0 )
     {
         if( ( ret = mbedtls_pkcs5_pbes2( &pbe_params, MBEDTLS_PKCS5_DECRYPT, pwd, pwdlen,
                                   p, len, buf ) ) != 0 )

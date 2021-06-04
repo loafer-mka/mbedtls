@@ -66,6 +66,9 @@
 #define MBEDTLS_ERR_PK_UNKNOWN_NAMED_CURVE -0x3A00  /**< Elliptic curve is unsupported (only NIST curves are supported). */
 #define MBEDTLS_ERR_PK_FEATURE_UNAVAILABLE -0x3980  /**< Unavailable feature, e.g. RSA disabled for RSA key. */
 #define MBEDTLS_ERR_PK_SIG_LEN_MISMATCH    -0x3900  /**< The buffer contains a valid signature followed by more data. */
+#define MBEDTLS_ERR_PK_IV_TOO_LONG         -0x3880  /**< The cipher's initial vector exceeds internal buffer size. */
+#define MBEDTLS_ERR_PK_KEY_TOO_LONG        -0x3800  /**< The cipher's key exceeds internal buffer size. */
+#define MBEDTLS_ERR_PK_BUF_TOO_SMALL       -0x3780  /**< The target buffer size too small. */
 
 #ifdef __cplusplus
 extern "C" {
