@@ -260,7 +260,7 @@ int mbedtls_pkcs5_pbes1( const mbedtls_asn1_buf *pbe_params, int mode,
     mbedtls_asn1_buf salt;
     const mbedtls_cipher_info_t *cipher_info;
     mbedtls_cipher_context_t cipher_ctx;
-    size_t olen = 0, md_len = 0;
+    size_t olen = 0;
 
     cipher_info = mbedtls_cipher_info_from_type( cipher_type );
     if( cipher_info == NULL )
