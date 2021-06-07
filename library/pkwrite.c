@@ -680,9 +680,9 @@ int mbedtls_pk_write_key_pkcs8_der( const mbedtls_pk_context *key, unsigned char
 
 /*
  *  PBES1_PKCS12Key ::= SEQUENCE {                  1 + 2
- *      cipherInfo          SEQUENCE {              1 + 1
- *          cipher_and_md       OBJECT              1 + 1 + 10    (longest 1.2.840.113549.1.12.1.6)
- *          parameters          SEQUENCE {          1 + 1
+ *      encryptionAlgirithm SEQUENCE {              1 + 1
+ *          AlgirithmIdentifier OBJECT              1 + 1 + 10    (longest 1.2.840.113549.1.12.1.6)
+ *          ContentEncryptiopn  SEQUENCE {          1 + 1
  *              salt                OCTET_STRING    1 + 1 + 8     (we use salt PKCS8_ENC_SALT_BYTES bytes)
  *              iterations          INTEGER         1 + 1 + 4     (really 2, default iterations 2048; millions may be...)
  *          }
@@ -707,13 +707,13 @@ int mbedtls_pk_write_key_pkcs8_der( const mbedtls_pk_context *key, unsigned char
 
 /*
  *  PBES2_Key ::= SEQUENCE {
- *      cipherInfo          SEQUENCE {                          1 + 1
- *          cipher_and_md       OBJECT                          1 + 1 + 9    (1.2.840.113549.1.5.13   MBEDTLS_OID_PKCS5_PBES2)
- *          parameters          SEQUENCE {                      1 + 1
+ *      encryptionAlgirithm SEQUENCE {                          1 + 1
+ *          AlgirithmIdentifier OBJECT                          1 + 1 + 9    (1.2.840.113549.1.5.13   MBEDTLS_OID_PKCS5_PBES2)
+ *          ContentEncryptiopn  SEQUENCE {                      1 + 1
  *              kdf_parameters      SEQUENCE {                  1 + 1
  *                  kdf_type            OBJECT                  1 + 1 + 9    (1.2.840.113549.1.5.12   MBEDTLS_OID_PKCS5_PBKDF2)
  *                  kdf_info            SEQUENCE {              1 + 1
- *                      salt                OCTET_STRING        1 + 1 + 8    (we use salt PKCS8_ENC_SALT_BYTES bytes)
+ *                      salt                OCTET_STRING        1 + 1 + 16    (up to iv size)
  *                      iterations          INTEGER             1 + 1 + 4    (really 2, default iterations 2048; millions may be...)
  * -------------------  keylen              INTEGER OPTIONAL    0            (will not be used; RC2 is not supported)
  *                  }
@@ -731,7 +731,7 @@ int mbedtls_pk_write_key_pkcs8_der( const mbedtls_pk_context *key, unsigned char
  *      }
  *      pub_and_priv        OCTET_STRING                        encrypted pkcs8 private key (pkcs8 length + padding up to block size)
  *  }
- *  91 + PKCS8_DER_MAX_BYTES
+ *  99 + PKCS8_DER_MAX_BYTES
  *  supported ciphers:
  *          1.2.840.113549.3.7      MBEDTLS_OID_DES_EDE3_CBC
  *          1.3.14.3.2.7            MBEDTLS_OID_DES_CBC
@@ -739,7 +739,7 @@ int mbedtls_pk_write_key_pkcs8_der( const mbedtls_pk_context *key, unsigned char
  *          2.16.840.1.101.3.4.1.42 MBEDTLS_OID_AES256_CBC
  */
 
-#define PKCS8_ENC_DER_MAX_BYTES  ( 91 + PKCS8_DER_MAX_BYTES )
+#define PKCS8_ENC_DER_MAX_BYTES  ( 99 + PKCS8_DER_MAX_BYTES )
 
 int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
         mbedtls_pbes_t key_format, unsigned char **der_buf, size_t der_size,
@@ -748,7 +748,8 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
         int (*f_rng)(void *, unsigned char *, size_t), void *p_rng )
 {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-    size_t der_len, oid_len, key_len, len0, len1, len2, len3, len4, len5;
+    size_t der_len, oid_len, key_len, iv_len, salt_len;
+    size_t len0, len1, len2, len3, len4, len5;
     unsigned char *der_beg, *der_end, *der_base;
     unsigned char *c;
     const char *oid;
@@ -757,7 +758,7 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
     mbedtls_cipher_context_t cipher_ctx;
     mbedtls_md_context_t md_ctx;
     unsigned char iv[ MBEDTLS_MAX_IV_LENGTH ];
-    unsigned char salt[ PKCS8_ENC_SALT_BYTES ];
+    unsigned char salt[ MBEDTLS_MAX_IV_LENGTH ];
     unsigned char cipher_key[ MBEDTLS_MAX_KEY_LENGTH ];
 
     PK_VALIDATE_RET( key != NULL );
@@ -770,17 +771,34 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
     cipher_info = mbedtls_cipher_info_from_type( enc_alg );
     if ( NULL == cipher_info ) return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
-    if ( cipher_info->iv_size > MBEDTLS_MAX_IV_LENGTH )
-        return( MBEDTLS_ERR_PK_IV_TOO_LONG );
-
-    key_len = cipher_info->key_bitlen / 8;
-    if ( key_len > MBEDTLS_MAX_KEY_LENGTH )
-        return( MBEDTLS_ERR_PK_KEY_TOO_LONG );
-
     md_info = mbedtls_md_info_from_type( md_alg );
     if( NULL == md_info ) return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
 
     if( der_size < MBEDTLS_MAX_BLOCK_LENGTH ) return( MBEDTLS_ERR_PK_BUF_TOO_SMALL );
+
+    mbedtls_md_init( &md_ctx );
+    mbedtls_cipher_init( &cipher_ctx );
+
+    if( ( ret = mbedtls_md_setup( &md_ctx, md_info, 1 ) ) != 0 )
+        goto cipher_end;
+
+    if( ( ret = mbedtls_cipher_setup( &cipher_ctx, cipher_info ) ) != 0 )
+        goto cipher_end;
+
+    iv_len = (size_t)mbedtls_cipher_get_iv_size( &cipher_ctx );
+    if ( iv_len > sizeof(iv) ) {
+        ret = MBEDTLS_ERR_PK_IV_TOO_LONG;
+        goto cipher_end;
+    }
+
+    salt_len = iv_len ? iv_len : PKCS8_ENC_SALT_BYTES;
+    if ( salt_len > sizeof(salt) ) salt_len = sizeof(salt);
+
+    key_len = (size_t)mbedtls_cipher_get_key_bitlen( &cipher_ctx ) / 8;
+    if ( key_len > sizeof(cipher_key) ) {
+        ret = MBEDTLS_ERR_PK_KEY_TOO_LONG;
+        goto cipher_end;
+    }
 
     switch ( key_format ) {
     case ENCRYPTION_SCHEME_PBES1:
@@ -788,7 +806,8 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
                                                         &oid, &oid_len ))
         {
             /* iv will be initialized later by key derivation procedure */
-            return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
+            ret = MBEDTLS_ERR_PK_BAD_INPUT_DATA;
+            goto cipher_end;
         }
         break;
     case ENCRYPTION_SCHEME_PKCS12:
@@ -796,21 +815,23 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
                                                         &oid, &oid_len ))
         {
             /* iv will be initialized later by key derivation procedure */
-            return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
+            ret = MBEDTLS_ERR_PK_BAD_INPUT_DATA;
+            goto cipher_end;
         }
 	break;
     case ENCRYPTION_SCHEME_PBES2:
         /* generate IV */
-        if( ( ret = f_rng( p_rng, iv, cipher_info->iv_size ) ) != 0 )
-            return( ret );
-	break;
+        if( ( ret = f_rng( p_rng, iv, iv_len ) ) != 0 )
+            goto cipher_end;
+        break;
     default:
-        return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
+        ret = MBEDTLS_ERR_PK_BAD_INPUT_DATA;
+        goto cipher_end;
     }
 
     /* generate salt */
-    if( ( ret = f_rng( p_rng, salt, sizeof(salt) ) ) != 0 )
-        return( ret );
+    if( ( ret = f_rng( p_rng, salt, salt_len ) ) != 0 )
+        goto cipher_end;
 
     /* reserve padding space at the end of buffer */
     der_base = *der_buf;
@@ -818,7 +839,7 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
 
     /* build plain der image */
     if( ( ret = mbedtls_pk_write_key_pkcs8_der( key, der_base, der_end - der_base ) ) < 0 )
-        return( ret );
+        goto cipher_end;
     der_len = len0 = ret;
     der_beg = c = der_end - der_len;
 
@@ -836,44 +857,36 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
     memset( der_end, (unsigned char)len2, len2 );
 
     /* code below is similary to mbedtls_pkcs5_pbes2() with minor changes */
-    mbedtls_md_init( &md_ctx );
-    mbedtls_cipher_init( &cipher_ctx );
-
-    if( ( ret = mbedtls_md_setup( &md_ctx, md_info, 1 ) ) != 0 )
-        goto cipher_end;
 
     /* generate cipher key */
     switch ( key_format ) {
     case ENCRYPTION_SCHEME_PBES1:
-        if( (ret = mbedtls_pkcs5_pbkdf1( md_alg, salt, sizeof(salt), iterations,
+        if( (ret = mbedtls_pkcs5_pbkdf1( md_alg, salt, salt_len, iterations,
                                          pwd, pwd_len, cipher_key, iv )) != 0 )
         {
             goto cipher_end;
         }
-	break;
+        break;
     case ENCRYPTION_SCHEME_PKCS12:
         if( ( ret = mbedtls_pkcs12_pbkdf( md_alg, pwd, pwd_len,
-                                          salt, sizeof(salt), iterations,
+                                          salt, salt_len, iterations,
                                           cipher_key, key_len,
-                                          iv, cipher_info->iv_size ) ) != 0 )
+                                          iv, iv_len ) ) != 0 )
         {
             goto cipher_end;
         }
-	break;
+        break;
     case ENCRYPTION_SCHEME_PBES2:
         if( ( ret = mbedtls_pkcs5_pbkdf2_hmac( &md_ctx, pwd, pwd_len,
-                                          salt, sizeof(salt), iterations,
-                                          key_len, cipher_key ) ) != 0 )
+                                          salt, salt_len, iterations,
+                                          (uint32_t)key_len, cipher_key ) ) != 0 )
         {
             goto cipher_end;
         }
-	break;
+        break;
     }
 
-    if( ( ret = mbedtls_cipher_setup( &cipher_ctx, cipher_info ) ) != 0 )
-        goto cipher_end;
-
-    if( ( ret = mbedtls_cipher_setkey( &cipher_ctx, cipher_key, 8 * key_len,
+    if( ( ret = mbedtls_cipher_setkey( &cipher_ctx, cipher_key, (int)(8*key_len),
                                        MBEDTLS_ENCRYPT ) ) != 0 )
         goto cipher_end;
 
@@ -881,7 +894,7 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
                                                  MBEDTLS_PADDING_NONE ) ) != 0)
         goto cipher_end;
 
-    if( ( ret = mbedtls_cipher_crypt( &cipher_ctx, iv, cipher_info->iv_size,
+    if( ( ret = mbedtls_cipher_crypt( &cipher_ctx, iv, iv_len,
                                       der_beg, der_len, der_beg, &len0 )) != 0)
         ret = MBEDTLS_ERR_PK_PASSWORD_MISMATCH;
 
@@ -904,36 +917,39 @@ cipher_end:
         /* iterations */
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_int( &c, der_base, iterations ) );
         /* salt */
-        c -= sizeof(salt);
+        c -= salt_len;
         if ( c <= der_base ) return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
-        len2 += sizeof(salt);
-        memcpy( c, salt, sizeof(salt) );
-        mbedtls_platform_zeroize( salt, sizeof(salt) );
-        MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_len( &c, der_base, sizeof(salt) ));
+        len2 += salt_len;
+        memcpy( c, salt, salt_len );
+        mbedtls_platform_zeroize( salt, salt_len );
+        MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_len( &c, der_base,
+                              salt_len ));
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_tag( &c, der_base,
                               MBEDTLS_ASN1_OCTET_STRING ));
-        /* parameters SEQUENCE */
+        /* ContentEncryptiopn SEQUENCE */
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_len( &c, der_base, len2 ) );
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_tag( &c, der_base,
                               MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
-        /* encryption scheme */
+        /* encryptionIdentifier scheme */
         len1 += len2;
-        MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_oid( &c, der_base, oid, oid_len ));
-        /* cipherInfo SEQUENCE */
-        MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_len( &c, der_base, len1 ) );
+        MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_oid( &c, der_base, oid,
+                              oid_len ));
+        /* encryptionAlgirithm SEQUENCE */
+        MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_len( &c, der_base,
+                              len1 ));
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_tag( &c, der_base,
                               MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
         break;
     case ENCRYPTION_SCHEME_PBES2:
         /* start new sequence with cipher info SEQUENCE { OID cipher, OCTET_STRING iv } */
         /* iv */
-        len3 = cipher_info->iv_size;
-        c -= cipher_info->iv_size;
+        len3 = iv_len;
+        c -= iv_len;
         if ( c <= der_base ) return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
-        memcpy( c, iv, cipher_info->iv_size );
+        memcpy( c, iv, iv_len );
         mbedtls_platform_zeroize( iv, sizeof(iv) );
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_len( &c, der_base, 
-                              cipher_info->iv_size ));
+                              iv_len ));
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_tag( &c, der_base,
                               MBEDTLS_ASN1_OCTET_STRING ));
         /* cipher id */
@@ -979,13 +995,13 @@ cipher_end:
         MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_int( &c, der_base,
                               iterations ) );
         /* salt */
-        c -= sizeof(salt);
+        c -= salt_len;
         if ( c <= der_base ) return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
-        len4 += sizeof(salt);
-        memcpy( c, salt, sizeof(salt) );
-        mbedtls_platform_zeroize( salt, sizeof(salt) );
+        len4 += salt_len;
+        memcpy( c, salt, salt_len );
+        mbedtls_platform_zeroize( salt, salt_len );
         MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_len( &c, der_base,
-                              sizeof(salt) ));
+                              salt_len ));
         MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_tag( &c, der_base,
                               MBEDTLS_ASN1_OCTET_STRING ));
         /* kdf_info SEQUENCE */
@@ -1002,17 +1018,17 @@ cipher_end:
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_len( &c, der_base, len3 ) );
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_tag( &c, der_base,
                               MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
-        /* parameters SEQUENCE */
+        /* ContentEncryptiopn SEQUENCE */
         len2 += len3;
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_len( &c, der_base, len2 ) );
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_tag( &c, der_base,
                               MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
-        /* pbes2 oid */
+        /* encryptionIdentifier := pbes2 oid */
         len1 += len2;
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_oid( &c, der_base,
                               MBEDTLS_OID_PKCS5_PBES2,
                               sizeof(MBEDTLS_OID_PKCS5_PBES2)-1 ));
-        /* cipherInfo SEQUENCE */
+        /* encryptionAlgirithm SEQUENCE */
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_len( &c, der_base, len1 ) );
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_tag( &c, der_base,
                               MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
@@ -1025,7 +1041,7 @@ cipher_end:
                    MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
 
     *der_buf = c;
-    return( len0 );
+    return( (int)len0 );
 }
 
 
