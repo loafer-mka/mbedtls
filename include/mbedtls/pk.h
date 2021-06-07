@@ -805,7 +805,7 @@ int mbedtls_pk_write_key_pkcs8_der( const mbedtls_pk_context *key, unsigned char
  *                   it will contain actual size of PEM data.
  * \param enc_alg    Cipher algorithm
  * \param md_alg     Hash algorithm used
- * \param iterations Iteration count (for key derivation)
+ * \param iterations Iteration count (for key derivation; 2048 for example)
  * \param pwd        Password for encryption.
  *                   The empty password is not supported.
  * \param pwd_len    Size of the password in bytes.

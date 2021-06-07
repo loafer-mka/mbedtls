@@ -96,6 +96,9 @@ static int pk_write_rsa_pubkey( unsigned char **p, unsigned char *start,
         goto end_of_export;
     len += ret;
 
+    /* Do not write SEQUENCE header here - this function may be used as part
+     * of storing the private key, where N and E are parts of entire key */
+
 end_of_export:
 
     mbedtls_mpi_free( &T );
@@ -520,15 +523,13 @@ int mbedtls_pk_write_key_pkcs8_der( const mbedtls_pk_context *key, unsigned char
  *          keyType          OBJECT,   -- id-ecPublicKey
  *          curve_id         OBJECT    -- curve oid
  *      }
- *      pub_and_priv     OCTET_STRING  -- note: this is reduced ECKey without tagA0 { curve_id OBJECT }
+ *      pub_and_priv     OCTET_STRING  -- note: this is reduced ECKey without 'parameters [0] ECParameters {{ NamedCurve }} OPTIONAL'
  *  }
  *
  *  reduced_ECKey ::= SEQUENCE {
  *      version          INTEGER,      -- 01
  *      private          OCTET_STRING, -- some data
- *      tagA1 {
- *          public           BIT_STRING
- *      }
+ *      publicKey  [1]   BIT STRING
  *  }
  */
     MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_len( &c, buf, len ) );
@@ -675,13 +676,74 @@ int mbedtls_pk_write_key_pkcs8_der( const mbedtls_pk_context *key, unsigned char
 #define PKCS8_DER_MAX_BYTES ( RSA_PKCS8_DER_MAX_BYTES > ECP_PKCS8_DER_MAX_BYTES ? \
                               RSA_PKCS8_DER_MAX_BYTES : ECP_PKCS8_DER_MAX_BYTES )
 
-#define PKCS8_ENC_DER_MAX_BYTES  ( 128 + PKCS8_DER_MAX_BYTES )
-
 #define PKCS8_ENC_SALT_BYTES   8
+
+/*
+ *  PBES1_PKCS12Key ::= SEQUENCE {                  1 + 2
+ *      cipherInfo          SEQUENCE {              1 + 1
+ *          cipher_and_md       OBJECT              1 + 1 + 10    (longest 1.2.840.113549.1.12.1.6)
+ *          parameters          SEQUENCE {          1 + 1
+ *              salt                OCTET_STRING    1 + 1 + 8     (we use salt PKCS8_ENC_SALT_BYTES bytes)
+ *              iterations          INTEGER         1 + 1 + 4     (really 2, default iterations 2048; millions may be...)
+ *          }
+ *      }
+ *      pub_and_priv        OCTET_STRING            encrypted pkcs8 private key (pkcs8 length + padding up to block size)
+ *  }
+ *  35 + PKCS8_DER_MAX_BYTES
+ *  supported ciphers:
+ *      pkcs5 pbes1
+ *        + 1.2.840.113549.1.5.3    MBEDTLS_OID_PKCS5_PBE_MD5_DES_CBC        (openssl pkcs8 -topk8 -v1 pbe-md5-des)
+ *        - 1.2.840.113549.1.5.6    MBEDTLS_OID_PKCS5_PBE_MD5_RC2_CBC        (openssl pkcs8 -topk8 -v1 pbe-md5-rc2-64)
+ *        + 1.2.840.113549.1.5.10   MBEDTLS_OID_PKCS5_PBE_SHA1_DES_CBC       (openssl pkcs8 -topk8 -v1 pbe-sha1-des)
+ *        - 1.2.840.113549.1.5.11   MBEDTLS_OID_PKCS5_PBE_SHA1_RC2_CBC       (openssl pkcs8 -topk8 -v1 pbe-sha1-rc2-64)
+ *      pkcs12
+ *        + 1.2.840.113549.1.12.1.1 MBEDTLS_OID_PKCS12_PBE_SHA1_RC4_128      (openssl pkcs8 -topk8 -v1 pbe-sha1-rc4-128)
+ *        - 1.2.840.113549.1.12.1.2 MBEDTLS_OID_PKCS12_PBE_SHA1_RC4_40       (openssl pkcs8 -topk8 -v1 pbe-sha1-rc4-40)
+ *        + 1.2.840.113549.1.12.1.3 MBEDTLS_OID_PKCS12_PBE_SHA1_DES3_EDE_CBC (openssl pkcs8 -topk8 -v1 pbe-sha1-3des)
+ *        + 1.2.840.113549.1.12.1.4 MBEDTLS_OID_PKCS12_PBE_SHA1_DES2_EDE_CBC (openssl pkcs8 -topk8 -v1 pbe-sha1-2des)
+ *        - 1.2.840.113549.1.12.1.5 MBEDTLS_OID_PKCS12_PBE_SHA1_RC2_128_CBC  (openssl pkcs8 -topk8 -v1 pbe-sha1-rc2-128)
+ *        - 1.2.840.113549.1.12.1.6 MBEDTLS_OID_PKCS12_PBE_SHA1_RC2_40_CBC   (openssl pkcs8 -topk8 -v1 pbe-sha1-rc2-40)
+ */
+
+/*
+ *  PBES2_Key ::= SEQUENCE {
+ *      cipherInfo          SEQUENCE {                          1 + 1
+ *          cipher_and_md       OBJECT                          1 + 1 + 9    (1.2.840.113549.1.5.13   MBEDTLS_OID_PKCS5_PBES2)
+ *          parameters          SEQUENCE {                      1 + 1
+ *              kdf_parameters      SEQUENCE {                  1 + 1
+ *                  kdf_type            OBJECT                  1 + 1 + 9    (1.2.840.113549.1.5.12   MBEDTLS_OID_PKCS5_PBKDF2)
+ *                  kdf_info            SEQUENCE {              1 + 1
+ *                      salt                OCTET_STRING        1 + 1 + 8    (we use salt PKCS8_ENC_SALT_BYTES bytes)
+ *                      iterations          INTEGER             1 + 1 + 4    (really 2, default iterations 2048; millions may be...)
+ * -------------------  keylen              INTEGER OPTIONAL    0            (will not be used; RC2 is not supported)
+ *                  }
+ *                  hmac_info           SEQUENCE {              1 + 1
+ *                      hmac_type           OBJECT              1 + 1 + 8    (1.2.840.113549.2.9      MBEDTLS_OID_HMAC_SHA256)
+ *                      hmac_parameters     NULL                1 + 1
+ *                  }
+ *              }
+ *              cipher_parameters   SEQUENCE {                  1 + 1
+ *                  ciper_type          OBJECT                  1 + 1 + 9    (2.16.840.1.101.3.4.1.42 MBEDTLS_OID_AES256_CBC)
+ *                  iv                  OCTET_STRING            1 + 1 + 16   (16 bytes for aes-128 and aes-256; 8 for des, des3)
+ * ---------------  in case of RC2 iv SEQUENCE { INTEGER, OCTET_STRING } instead of iv OCTET_STRING may be used; (rc2 is not supported)
+ *              }
+ *          }
+ *      }
+ *      pub_and_priv        OCTET_STRING                        encrypted pkcs8 private key (pkcs8 length + padding up to block size)
+ *  }
+ *  91 + PKCS8_DER_MAX_BYTES
+ *  supported ciphers:
+ *          1.2.840.113549.3.7      MBEDTLS_OID_DES_EDE3_CBC
+ *          1.3.14.3.2.7            MBEDTLS_OID_DES_CBC
+ *          2.16.840.1.101.3.4.1.2  MBEDTLS_OID_AES128_CBC
+ *          2.16.840.1.101.3.4.1.42 MBEDTLS_OID_AES256_CBC
+ */
+
+#define PKCS8_ENC_DER_MAX_BYTES  ( 91 + PKCS8_DER_MAX_BYTES )
 
 int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
         mbedtls_pbes_t key_format, unsigned char **der_buf, size_t der_size,
-        mbedtls_cipher_type_t enc_alg, mbedtls_md_type_t md_alg, int repeats,
+        mbedtls_cipher_type_t enc_alg, mbedtls_md_type_t md_alg, int iterations,
         const unsigned char *pwd, size_t pwd_len,
         int (*f_rng)(void *, unsigned char *, size_t), void *p_rng )
 {
@@ -699,11 +761,11 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
     unsigned char cipher_key[ MBEDTLS_MAX_KEY_LENGTH ];
 
     PK_VALIDATE_RET( key != NULL );
-    PK_VALIDATE_RET( buf != NULL || size == 0 );
+    PK_VALIDATE_RET( buf != NULL && *buf != NULL && size > 0 );
     PK_VALIDATE_RET( pwd != NULL && pwd_len != 0 );
     PK_VALIDATE_RET( f_rng != NULL );
 
-    if ( repeats <= 0 ) repeats = 2048;
+    if ( iterations <= 0 ) iterations = 2048;
 
     cipher_info = mbedtls_cipher_info_from_type( enc_alg );
     if ( NULL == cipher_info ) return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
@@ -728,7 +790,7 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
             /* iv will be initialized later by key derivation procedure */
             return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
         }
-	break;
+        break;
     case ENCRYPTION_SCHEME_PKCS12:
         if (0 != mbedtls_oid_get_oid_by_pkcs12_pbe_alg( md_alg, enc_alg,
                                                         &oid, &oid_len ))
@@ -738,61 +800,18 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
         }
 	break;
     case ENCRYPTION_SCHEME_PBES2:
-        if( ( ret = f_rng( p_rng, iv, cipher_info->iv_size ) ) != 0 ) /* generate IV */
+        /* generate IV */
+        if( ( ret = f_rng( p_rng, iv, cipher_info->iv_size ) ) != 0 )
             return( ret );
 	break;
     default:
         return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
     }
 
-    if( ( ret = f_rng( p_rng, salt, sizeof(salt) ) ) != 0 ) /* generate salt */
+    /* generate salt */
+    if( ( ret = f_rng( p_rng, salt, sizeof(salt) ) ) != 0 )
         return( ret );
 
-/*
- * PBES2
- *  0..51F   tag=30 len=51C  cons SEQUENCE                          (len0)
- *  4..53        tag=30 len=4E   cons SEQUENCE                      (len1)
- *  6..10            tag=06 len=9    prim OBJECT ID                  1.2.840.113549.1.5.13   PBES2           MBEDTLS_OID_PKCS5_PBES2
- * 11..53            tag=30 len=41   cons SEQUENCE                  (len2)
- * 13..3D                tag=30 len=29   cons SEQUENCE              (len3)
- * 15..1F                    tag=06 len=9    prim OBJECT ID          1.2.840.113549.1.5.12   PBKDFv2         MBEDTLS_OID_PKCS5_PBKDF2
- * 20..3D                    tag=30 len=1C   cons SEQUENCE          (len4)
- * 22..2B                        tag=04 len=8    prim OCTET STRING   salt
- * 2C..2F                        tag=02 len=2    prim INTEGER        repeats (0800)
- ****  prim INTEGER        keylen      <<-- optional ... used for RC2-CBC; RC2 now is not supported
- * 30..3D                        tag=30 len=C    cons SEQUENCE      (len5)
- * 32..3B                            tag=06 len=8    prim OBJECT ID  1.2.840.113549.2.9      hmacWithSHA256  MBEDTLS_OID_HMAC_SHA256
- * 3C..3D                            tag=05 len=0    prim TAG NULL
- * 3E..53                tag=30 len=14   cons SEQUENCE              (len3)
- * 40..49                    tag=06 len=8    prim OBJECT ID          1.2.840.113549.3.7      DES-EDE3-CBC    MBEDTLS_OID_DES_EDE3_CBC
- *                                                                   1.3.14.3.2.7            DES-CBC         MBEDTLS_OID_DES_CBC
- *                                                                   2.16.840.1.101.3.4.1.2  AES-128-CBC     MBEDTLS_OID_AES128_CBC
- *                                                                   2.16.840.1.101.3.4.1.42 AES-256-CBC     MBEDTLS_OID_AES256_CBC
- * 4A..53                    tag=04 len=8    prim OCTET STRING       initial vector
- ****  'OCTET_STRING iv' may be presented as SEQUENCE{ INTEGER ?, OCTET_STRING iv } ... used for RC2-CBC; RC2 now is not supported
- * 54..51F       tag=04 len=4C8  prim OCTET STRING                   encypted pkcs8 private key
- *
- * PBES1 and PKCS12
- *  0:d=0  hl=3 l= 224 cons: SEQUENCE          
- *  3:d=1  hl=2 l=  27 cons:  SEQUENCE          
- *  5:d=2  hl=2 l=   9 prim:   OBJECT                                pkcs5 pbes1
- *                                                                   1.2.840.113549.1.5.3    pbeWithMD5AndDES-CBC             MBEDTLS_OID_PKCS5_PBE_MD5_DES_CBC        (-v1 pbe-md5-des)
- *                                                                   1.2.840.113549.1.5.6    pbeWithMD5AndRC2-CBC             MBEDTLS_OID_PKCS5_PBE_MD5_RC2_CBC        (-v1 pbe-md5-rc2-64)
- *                                                                   1.2.840.113549.1.5.10   pbeWithSHA1AndDES-CBC            MBEDTLS_OID_PKCS5_PBE_SHA1_DES_CBC       (-v1 pbe-sha1-des)
- *                                                                   1.2.840.113549.1.5.11   pbeWithSHA1AndRC2-CBC            MBEDTLS_OID_PKCS5_PBE_SHA1_RC2_CBC       (-v1 pbe-sha1-rc2-64)
- *                                                                   pkcs12
- *                                                                   1.2.840.113549.1.12.1.1 pbeWithSHA1And128BitRC4          MBEDTLS_OID_PKCS12_PBE_SHA1_RC4_128      (-v1 pbe-sha1-rc4-128)
- *                                                                   1.2.840.113549.1.12.1.2 pbeWithSHA1And40BitRC4           MBEDTLS_OID_PKCS12_PBE_SHA1_RC4_40       (-v1 pbe-sha1-rc4-40)
- *                                                                   1.2.840.113549.1.12.1.3 pbeWithSHA1And3-KeyTripleDES-CBC MBEDTLS_OID_PKCS12_PBE_SHA1_DES3_EDE_CBC (-v1 pbe-sha1-3des)
- *                                                                   1.2.840.113549.1.12.1.4 pbeWithSHA1And2-KeyTripleDES-CBC MBEDTLS_OID_PKCS12_PBE_SHA1_DES2_EDE_CBC (-v1 pbe-sha1-2des)
- *                                                                   1.2.840.113549.1.12.1.5 pbeWithSHA1And128BitRC2-CBC      MBEDTLS_OID_PKCS12_PBE_SHA1_RC2_128_CBC  (-v1 pbe-sha1-rc2-128)
- *                                                                   1.2.840.113549.1.12.1.6 pbeWithSHA1And40BitRC2-CBC       MBEDTLS_OID_PKCS12_PBE_SHA1_RC2_40_CBC   (-v1 pbe-sha1-rc2-40)
- * 16:d=2  hl=2 l=  14 cons:   SEQUENCE          
- * 18:d=3  hl=2 l=   8 prim:    OCTET STRING                         salt
- * 28:d=3  hl=2 l=   2 prim:    INTEGER           :0800              repeats
- * 32:d=1  hl=3 l= 192 prim:  OCTET STRING                           encypted pkcs8 private key
- *
- */
     /* reserve padding space at the end of buffer */
     der_base = *der_buf;
     der_end = der_base + der_size - MBEDTLS_MAX_BLOCK_LENGTH;
@@ -809,7 +828,7 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
      * OCTET_STRING length after encryption.
      * Moreover: best way is to pad buffer manually and disable padding by cipher
      * because mbedtls_cipher_crypt() (like as mbedtls_cipher_update()) cannot pad
-     * if in-place encrypting (input buffer == output buffer).
+     * if in-place encrypting (input buffer == output buffer) used.
      */
     /* padding */
     len2 = cipher_info->block_size - der_len % cipher_info->block_size;
@@ -823,9 +842,10 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
     if( ( ret = mbedtls_md_setup( &md_ctx, md_info, 1 ) ) != 0 )
         goto cipher_end;
 
+    /* generate cipher key */
     switch ( key_format ) {
     case ENCRYPTION_SCHEME_PBES1:
-        if( (ret = mbedtls_pkcs5_pbkdf1( md_alg, salt, sizeof(salt), repeats,
+        if( (ret = mbedtls_pkcs5_pbkdf1( md_alg, salt, sizeof(salt), iterations,
                                          pwd, pwd_len, cipher_key, iv )) != 0 )
         {
             goto cipher_end;
@@ -833,15 +853,17 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
 	break;
     case ENCRYPTION_SCHEME_PKCS12:
         if( ( ret = mbedtls_pkcs12_pbkdf( md_alg, pwd, pwd_len,
-	        salt, sizeof(salt), repeats, cipher_key, key_len,
-		iv, cipher_info->iv_size ) ) != 0 )
+                                          salt, sizeof(salt), iterations,
+                                          cipher_key, key_len,
+                                          iv, cipher_info->iv_size ) ) != 0 )
         {
             goto cipher_end;
         }
 	break;
     case ENCRYPTION_SCHEME_PBES2:
         if( ( ret = mbedtls_pkcs5_pbkdf2_hmac( &md_ctx, pwd, pwd_len,
-	        salt, sizeof(salt), repeats, key_len, cipher_key ) ) != 0 )
+                                          salt, sizeof(salt), iterations,
+                                          key_len, cipher_key ) ) != 0 )
         {
             goto cipher_end;
         }
@@ -855,11 +877,12 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
                                        MBEDTLS_ENCRYPT ) ) != 0 )
         goto cipher_end;
 
-    if( ( ret = mbedtls_cipher_set_padding_mode( &cipher_ctx, MBEDTLS_PADDING_NONE ) ) != 0 )
+    if( ( ret = mbedtls_cipher_set_padding_mode( &cipher_ctx,
+                                                 MBEDTLS_PADDING_NONE ) ) != 0)
         goto cipher_end;
 
     if( ( ret = mbedtls_cipher_crypt( &cipher_ctx, iv, cipher_info->iv_size,
-                              der_beg, der_len, der_beg, &len0 ) ) != 0 )
+                                      der_beg, der_len, der_beg, &len0 )) != 0)
         ret = MBEDTLS_ERR_PK_PASSWORD_MISMATCH;
 
 cipher_end:
@@ -871,13 +894,16 @@ cipher_end:
     if ( 0 != ret ) return( ret );
 
     MBEDTLS_ASN1_CHK_ADD( len0, mbedtls_asn1_write_len( &c, der_base, len0 ) );
-    MBEDTLS_ASN1_CHK_ADD( len0, mbedtls_asn1_write_tag( &c, der_base, MBEDTLS_ASN1_OCTET_STRING ) );
+    MBEDTLS_ASN1_CHK_ADD( len0, mbedtls_asn1_write_tag( &c, der_base,
+                          MBEDTLS_ASN1_OCTET_STRING ) );
 
     len1 = len2 = 0;
     switch ( key_format ) {
     case ENCRYPTION_SCHEME_PBES1:
     case ENCRYPTION_SCHEME_PKCS12:
-        MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_int( &c, der_base, repeats ) );               /* repeats */
+        /* iterations */
+        MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_int( &c, der_base, iterations ) );
+        /* salt */
         c -= sizeof(salt);
         if ( c <= der_base ) return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
         len2 += sizeof(salt);
@@ -885,85 +911,111 @@ cipher_end:
         mbedtls_platform_zeroize( salt, sizeof(salt) );
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_len( &c, der_base, sizeof(salt) ));
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_tag( &c, der_base,
-                               MBEDTLS_ASN1_OCTET_STRING ));
+                              MBEDTLS_ASN1_OCTET_STRING ));
+        /* parameters SEQUENCE */
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_len( &c, der_base, len2 ) );
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_tag( &c, der_base,
-                               MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
-
-	len1 += len2;
+                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+        /* encryption scheme */
+        len1 += len2;
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_oid( &c, der_base, oid, oid_len ));
-
+        /* cipherInfo SEQUENCE */
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_len( &c, der_base, len1 ) );
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_tag( &c, der_base,
-                               MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
         break;
     case ENCRYPTION_SCHEME_PBES2:
         /* start new sequence with cipher info SEQUENCE { OID cipher, OCTET_STRING iv } */
+        /* iv */
         len3 = cipher_info->iv_size;
         c -= cipher_info->iv_size;
         if ( c <= der_base ) return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
         memcpy( c, iv, cipher_info->iv_size );
         mbedtls_platform_zeroize( iv, sizeof(iv) );
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_len( &c, der_base, 
-                    cipher_info->iv_size ));
+                              cipher_info->iv_size ));
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_tag( &c, der_base,
-                    MBEDTLS_ASN1_OCTET_STRING ));
-        /* what other parameters? */
-        if((ret = mbedtls_oid_get_oid_by_cipher_alg( enc_alg, &oid, &oid_len )) != 0)
+                              MBEDTLS_ASN1_OCTET_STRING ));
+        /* cipher id */
+        if( (ret = mbedtls_oid_get_oid_by_cipher_alg( enc_alg, &oid,
+                                                      &oid_len ) ) != 0 )
             return( ret );
-        MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_oid( &c, der_base, oid, oid_len ));
-
-        MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_len( &c, der_base, len3 ) );
+        MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_oid( &c, der_base, oid,
+                              oid_len ));
+        /* cipher_parameters SEQUENCE */
+        MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_len( &c, der_base,
+                              len3 ) );
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_tag( &c, der_base,
-                    MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+                              MBEDTLS_ASN1_CONSTRUCTED|MBEDTLS_ASN1_SEQUENCE ));
         len2 += len3;
 
-        /* start new sequence with PBKDF info SEQUENCE { OID PBKDFv2, SEQUENCE { OCTET_STRING salt, INTEGER repeats, SEQUENCE hmac_alg_info } } */
+        /* start new sequence with PBKDF info SEQUENCE { 
+         *    OID PBKDFv2, SEQUENCE { 
+         *        OCTET_STRING salt, INTEGER iterations, SEQUENCE hmac_info
+         *    }
+         * } */
         len3 = len4 = 0;
 
-        /* fill hmac_alg_info SEQUENCE { OID hmac_alg, NULL } */
+        /* fill hmac_info SEQUENCE { OID hmac_alg, NULL } */
         len5 = 0;
+        /* NULL tag */
         MBEDTLS_ASN1_CHK_ADD( len5, mbedtls_asn1_write_len( &c, der_base, 0 ) );
-        MBEDTLS_ASN1_CHK_ADD( len5, mbedtls_asn1_write_tag( &c, der_base, MBEDTLS_ASN1_NULL ) );
-    
-        if((ret = mbedtls_oid_get_oid_by_md_hmac( md_alg, &oid, &oid_len )) != 0 )
-            return( ret );
-        MBEDTLS_ASN1_CHK_ADD( len5, mbedtls_asn1_write_oid( &c, der_base, oid, oid_len ));           /* MD alg */
-        MBEDTLS_ASN1_CHK_ADD( len5, mbedtls_asn1_write_len( &c, der_base, len5 ) );
         MBEDTLS_ASN1_CHK_ADD( len5, mbedtls_asn1_write_tag( &c, der_base,
-                    MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+                              MBEDTLS_ASN1_NULL ) );
+        /* MD alg */
+        if((ret = mbedtls_oid_get_oid_by_md_hmac(md_alg, &oid, &oid_len)) != 0)
+            return( ret );
+        MBEDTLS_ASN1_CHK_ADD( len5, mbedtls_asn1_write_oid( &c, der_base, oid,
+                              oid_len ));
+        /* hmac_info SEQUENCE */
+        MBEDTLS_ASN1_CHK_ADD( len5, mbedtls_asn1_write_len( &c, der_base,
+                              len5 ) );
+        MBEDTLS_ASN1_CHK_ADD( len5, mbedtls_asn1_write_tag( &c, der_base,
+                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
         len4 += len5;
 
-        MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_int( &c, der_base, repeats ) );               /* repeats */
+        /* fill kdf_info SEQUENCE */
+        /* iterations */
+        MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_int( &c, der_base,
+                              iterations ) );
+        /* salt */
         c -= sizeof(salt);
         if ( c <= der_base ) return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
         len4 += sizeof(salt);
         memcpy( c, salt, sizeof(salt) );
         mbedtls_platform_zeroize( salt, sizeof(salt) );
-        MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_len( &c, der_base, sizeof(salt) ));
+        MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_len( &c, der_base,
+                              sizeof(salt) ));
         MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_tag( &c, der_base,
-                    MBEDTLS_ASN1_OCTET_STRING ));
-        MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_len( &c, der_base, len4 ) );
+                              MBEDTLS_ASN1_OCTET_STRING ));
+        /* kdf_info SEQUENCE */
+        MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_len( &c, der_base,
+                              len4 ) );
         MBEDTLS_ASN1_CHK_ADD( len4, mbedtls_asn1_write_tag( &c, der_base,
-                    MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+        /* pbkdf2 oid */
         len3 += len4;
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_oid( &c, der_base,
-                    MBEDTLS_OID_PKCS5_PBKDF2, sizeof(MBEDTLS_OID_PKCS5_PBKDF2)-1 ));
+                              MBEDTLS_OID_PKCS5_PBKDF2,
+                              sizeof(MBEDTLS_OID_PKCS5_PBKDF2)-1 ));
+        /* kdf_parameters SEQUENCE */
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_len( &c, der_base, len3 ) );
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_tag( &c, der_base,
-                    MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+        /* parameters SEQUENCE */
         len2 += len3;
-
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_len( &c, der_base, len2 ) );
         MBEDTLS_ASN1_CHK_ADD( len2, mbedtls_asn1_write_tag( &c, der_base,
-                    MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+        /* pbes2 oid */
         len1 += len2;
-
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_oid( &c, der_base,
-                   MBEDTLS_OID_PKCS5_PBES2, sizeof(MBEDTLS_OID_PKCS5_PBES2)-1 ));
+                              MBEDTLS_OID_PKCS5_PBES2,
+                              sizeof(MBEDTLS_OID_PKCS5_PBES2)-1 ));
+        /* cipherInfo SEQUENCE */
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_len( &c, der_base, len1 ) );
         MBEDTLS_ASN1_CHK_ADD( len1, mbedtls_asn1_write_tag( &c, der_base,
-                   MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
+                              MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ));
         break;
     }
 
@@ -979,8 +1031,8 @@ cipher_end:
 
 #if defined(MBEDTLS_PEM_WRITE_C)
 
-#define PEM_BEGIN_PUBLIC_KEY    "-----BEGIN PUBLIC KEY-----\n"
-#define PEM_END_PUBLIC_KEY      "-----END PUBLIC KEY-----\n"
+#define PEM_BEGIN_PUBLIC_KEY        "-----BEGIN PUBLIC KEY-----\n"
+#define PEM_END_PUBLIC_KEY          "-----END PUBLIC KEY-----\n"
 
 #define PEM_BEGIN_PRIVATE_KEY       "-----BEGIN PRIVATE KEY-----\n"
 #define PEM_END_PRIVATE_KEY         "-----END PRIVATE KEY-----\n"
@@ -1072,14 +1124,10 @@ int mbedtls_pk_write_key_pkcs8_pem( const mbedtls_pk_context *key, unsigned char
     if( ( ret = mbedtls_pk_write_key_pkcs8_der( key, output_buf, sizeof(output_buf) ) ) < 0 )
         return( ret );
 
-    if( ( ret = mbedtls_pem_write_buffer( PEM_BEGIN_PRIVATE_KEY, PEM_END_PRIVATE_KEY,
+    ret = mbedtls_pem_write_buffer( PEM_BEGIN_PRIVATE_KEY, PEM_END_PRIVATE_KEY,
                                   output_buf + sizeof(output_buf) - ret,
-                                  ret, buf, size, &olen ) ) != 0 )
-    {
-        return( ret );
-    }
-
-    return( 0 );
+                                  ret, buf, size, &olen );
+    return( ret );
 }
 
 int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx, 
@@ -1127,7 +1175,7 @@ int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
     cipher_info = mbedtls_cipher_info_from_type( enc_alg );
     if ( NULL == cipher_info ) return( MBEDTLS_ERR_PK_INVALID_ALG );
 
-    if( ( ret = mbedtls_pk_write_key_der( ctx, der_buf, PRV_DER_MAX_BYTES ) ) < 0 )
+    if( ( ret = mbedtls_pk_write_key_der( ctx, der_buf, sizeof(der_buf) ) ) < 0 )
         return( ret );
     der_len = (size_t)ret;
     /* 
@@ -1166,8 +1214,10 @@ int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
                            cipher_info->key_bitlen, MBEDTLS_ENCRYPT ) ) != 0 )
         goto cipher_exit;
 
+    /* padding will be used now; input buffer != output here
+       note: mbedtls_cipher_crypt() cannot padd if in-place encrypting */
     ret = mbedtls_cipher_crypt( &cipher_ctx, iv, cipher_info->iv_size,
-                                der_buf + PRV_DER_MAX_BYTES - der_len, der_len,
+                                der_buf + sizeof(der_buf) - der_len, der_len,
                                 der_buf, &r );
 
 cipher_exit:
@@ -1181,13 +1231,13 @@ cipher_exit:
 
 int mbedtls_pk_write_key_pkcs8_encrypted_pem( const mbedtls_pk_context *ctx, 
          mbedtls_pbes_t key_fmt, unsigned char *buf, size_t *psize, 
-         mbedtls_cipher_type_t enc_alg, mbedtls_md_type_t md_alg, int repeats,
+         mbedtls_cipher_type_t enc_alg, mbedtls_md_type_t md_alg, int iterations,
          const unsigned char *pwd, size_t pwd_len,
          int (*f_rng)(void *, unsigned char *, size_t),
          void *p_rng )
 {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-    unsigned char der_buf[ PKCS8_ENC_DER_MAX_BYTES ];
+    unsigned char der_buf[ PKCS8_ENC_DER_MAX_BYTES + MBEDTLS_MAX_BLOCK_LENGTH ];
     unsigned char *pder = der_buf;
 
     PK_VALIDATE_RET( ctx != NULL );
@@ -1196,12 +1246,14 @@ int mbedtls_pk_write_key_pkcs8_encrypted_pem( const mbedtls_pk_context *ctx,
     PK_VALIDATE_RET( pwd != NULL && pwd_len == 0 );
     PK_VALIDATE_RET( f_rng != NULL );
 
+    /* 'pder' will be updated by mbedtls_pk_write_key_pkcs8_encrypted_der()
+     * because some padding will be reserved at the end of buffer */
     if( ( ret = mbedtls_pk_write_key_pkcs8_encrypted_der( ctx, key_fmt,
-            &pder, sizeof(der_buf), enc_alg, md_alg, repeats,
+            &pder, sizeof(der_buf), enc_alg, md_alg, iterations,
             pwd, pwd_len, f_rng, p_rng ) ) < 0 ) return( ret );
 
     ret = mbedtls_pem_write_buffer( PEM_BEGIN_ENC_PRIVATE_KEY, PEM_END_ENC_PRIVATE_KEY,
-                                  pder, (size_t)ret, buf, *psize, psize );
+                                    pder, (size_t)ret, buf, *psize, psize );
 
     return( ret );
 }
