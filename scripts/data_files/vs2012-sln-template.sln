@@ -10,10 +10,10 @@ Global
 		Debug|x64 = Debug|x64
 		Release|Win32 = Release|Win32
 		Release|x64 = Release|x64
-		DebugSRT|Win32 = DebugSRT|Win32
-		DebugSRT|x64 = DebugSRT|x64
-		ReleaseSRT|Win32 = ReleaseSRT|Win32
-		ReleaseSRT|x64 = ReleaseSRT|x64
+		SrtDebug|Win32 = SrtDebug|Win32
+		SrtDebug|x64 = SrtDebug|x64
+		SrtRelease|Win32 = SrtRelease|Win32
+		SrtRelease|x64 = SrtRelease|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{46CF2D25-6A36-4189-B59C-E4815388E554}.Debug|Win32.ActiveCfg = Debug|Win32
@@ -24,14 +24,14 @@ Global
 		{46CF2D25-6A36-4189-B59C-E4815388E554}.Release|Win32.Build.0 = Release|Win32
 		{46CF2D25-6A36-4189-B59C-E4815388E554}.Release|x64.ActiveCfg = Release|x64
 		{46CF2D25-6A36-4189-B59C-E4815388E554}.Release|x64.Build.0 = Release|x64
-		{46CF2D25-6A36-4189-B59C-E4815388E554}.DebugSRT|Win32.ActiveCfg = DebugSRT|Win32
-		{46CF2D25-6A36-4189-B59C-E4815388E554}.DebugSRT|Win32.Build.0 = DebugSRT|Win32
-		{46CF2D25-6A36-4189-B59C-E4815388E554}.DebugSRT|x64.ActiveCfg = DebugSRT|x64
-		{46CF2D25-6A36-4189-B59C-E4815388E554}.DebugSRT|x64.Build.0 = DebugSRT|x64
-		{46CF2D25-6A36-4189-B59C-E4815388E554}.ReleaseSRT|Win32.ActiveCfg = ReleaseSRT|Win32
-		{46CF2D25-6A36-4189-B59C-E4815388E554}.ReleaseSRT|Win32.Build.0 = ReleaseSRT|Win32
-		{46CF2D25-6A36-4189-B59C-E4815388E554}.ReleaseSRT|x64.ActiveCfg = ReleaseSRT|x64
-		{46CF2D25-6A36-4189-B59C-E4815388E554}.ReleaseSRT|x64.Build.0 = ReleaseSRT|x64
+		{46CF2D25-6A36-4189-B59C-E4815388E554}.SrtDebug|Win32.ActiveCfg = SrtDebug|Win32
+		{46CF2D25-6A36-4189-B59C-E4815388E554}.SrtDebug|Win32.Build.0 = SrtDebug|Win32
+		{46CF2D25-6A36-4189-B59C-E4815388E554}.SrtDebug|x64.ActiveCfg = SrtDebug|x64
+		{46CF2D25-6A36-4189-B59C-E4815388E554}.SrtDebug|x64.Build.0 = SrtDebug|x64
+		{46CF2D25-6A36-4189-B59C-E4815388E554}.SrtRelease|Win32.ActiveCfg = SrtRelease|Win32
+		{46CF2D25-6A36-4189-B59C-E4815388E554}.SrtRelease|Win32.Build.0 = SrtRelease|Win32
+		{46CF2D25-6A36-4189-B59C-E4815388E554}.SrtRelease|x64.ActiveCfg = SrtRelease|x64
+		{46CF2D25-6A36-4189-B59C-E4815388E554}.SrtRelease|x64.Build.0 = SrtRelease|x64
 CONF_ENTRIES
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution

@@ -13,12 +13,12 @@ mbedTLS.sln
 /.vs/
 _Win32_Debug/
 _Win32_Release/
-_Win32_DebugSRT/
-_Win32_ReleaseSRT/
+_Win32_SrtDebug/
+_Win32_SrtRelease/
 _x64_Debug/
 _x64_Release/
-_x64_DebugSRT/
-_x64_ReleaseSRT/
+_x64_SrtDebug/
+_x64_SrtRelease/
 /Debug/
 /Release/
 /*.vcxproj.filters
