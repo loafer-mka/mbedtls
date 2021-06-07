@@ -72,13 +72,15 @@ int mbedtls_pkcs5_pbes2( const mbedtls_asn1_buf *pbe_params, int mode,
 /**
  * \brief          PKCS#5 PBES1 function
  *
- * \param pbe_params the ASN.1 algorithm parameters
- * \param mode       either MBEDTLS_PKCS5_DECRYPT or MBEDTLS_PKCS5_ENCRYPT
- * \param pwd        password to use when generating key
- * \param pwdlen     length of password
- * \param data       data to process
- * \param datalen    length of data
- * \param output     output buffer
+ * \param pbe_params  the ASN.1 algorithm parameters
+ * \param mode        either MBEDTLS_PKCS5_DECRYPT or MBEDTLS_PKCS5_ENCRYPT
+ * \param cipher_type the cipher used
+ * \param md_type     the mbedtls_md used
+ * \param pwd         password to use when generating key
+ * \param pwdlen      length of password
+ * \param data        data to process
+ * \param datalen     length of data
+ * \param output      output buffer
  *
  * \returns        0 on success, or a MBEDTLS_ERR_XXX code if verification fails.
  */
