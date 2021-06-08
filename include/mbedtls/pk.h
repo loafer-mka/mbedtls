@@ -196,9 +196,9 @@ typedef struct mbedtls_pk_context
  * \brief           Encryption scheme for pkcs8 private key format
  */
 typedef enum mbedtls_pbes_t {
-    ENCRYPTION_SCHEME_PBES2 = 0,
-    ENCRYPTION_SCHEME_PKCS12,
-    ENCRYPTION_SCHEME_PBES1
+    ENCRYPTION_SCHEME_PBES2 = 0,  /**< Actual PBES2 scheme                      */
+    ENCRYPTION_SCHEME_PKCS12,     /**< PBES1 with some cipher/digest extensions */
+    ENCRYPTION_SCHEME_PBES1       /**< old PBES1 scheme */
 } mbedtls_pbes_t;
 
 #if defined(MBEDTLS_ECDSA_C) && defined(MBEDTLS_ECP_RESTARTABLE)
