@@ -843,7 +843,7 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
     der_len = len0 = ret;
     der_beg = c = der_end - der_len;
 
-    /* 
+    /*
      * Note: mbedtls_pkcs5_pbes2() cannot be used for encrypting key: it does not
      * return actual length of encrypted data after padding, so we cannot assign
      * OCTET_STRING length after encryption.
@@ -948,7 +948,7 @@ cipher_end:
         if ( c <= der_base ) return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
         memcpy( c, iv, iv_len );
         mbedtls_platform_zeroize( iv, sizeof(iv) );
-        MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_len( &c, der_base, 
+        MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_len( &c, der_base,
                               iv_len ));
         MBEDTLS_ASN1_CHK_ADD( len3, mbedtls_asn1_write_tag( &c, der_base,
                               MBEDTLS_ASN1_OCTET_STRING ));
@@ -965,8 +965,8 @@ cipher_end:
                               MBEDTLS_ASN1_CONSTRUCTED|MBEDTLS_ASN1_SEQUENCE ));
         len2 += len3;
 
-        /* start new sequence with PBKDF info SEQUENCE { 
-         *    OID PBKDFv2, SEQUENCE { 
+        /* start new sequence with PBKDF info SEQUENCE {
+         *    OID PBKDFv2, SEQUENCE {
          *        OCTET_STRING salt, INTEGER iterations, SEQUENCE hmac_info
          *    }
          * } */
@@ -1146,9 +1146,9 @@ int mbedtls_pk_write_key_pkcs8_pem( const mbedtls_pk_context *key, unsigned char
     return( ret );
 }
 
-int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx, 
-                                  unsigned char *buf, size_t *psize, 
-                                  mbedtls_cipher_type_t enc_alg, 
+int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
+                                  unsigned char *buf, size_t *psize,
+                                  mbedtls_cipher_type_t enc_alg,
                                   const unsigned char *pwd, size_t pwd_len,
                                   int (*f_rng)(void *, unsigned char *, size_t),
                                   void *p_rng )
@@ -1194,7 +1194,7 @@ int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
     if( ( ret = mbedtls_pk_write_key_der( ctx, der_buf, sizeof(der_buf) ) ) < 0 )
         return( ret );
     der_len = (size_t)ret;
-    /* 
+    /*
      * Note: mbedtls_cipher_crypt() (like as mbedtls_cipher_upate()) may padd
      * if input buffer != output buffer; it is our case, so use embedded padding
      */
@@ -1222,7 +1222,7 @@ int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
     mbedtls_cipher_init( &cipher_ctx );
     mbedtls_cipher_setup( &cipher_ctx, cipher_info );
 
-    if( ( ret = mbedtls_pem_pbkdf1( cipher_key, cipher_info->key_bitlen/8, 
+    if( ( ret = mbedtls_pem_pbkdf1( cipher_key, cipher_info->key_bitlen/8,
                                     iv, pwd, pwd_len ) ) != 0 )
         goto cipher_exit;
 
@@ -1238,6 +1238,7 @@ int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
 
 cipher_exit:
     mbedtls_cipher_free( &cipher_ctx );
+    mbedtls_platform_zeroize( cipher_key, sizeof(cipher_key) );
 
     if( 0 == ret ) ret = mbedtls_pem_write_buffer( pem_header, end, der_buf, r,
                                   buf, *psize, psize );
@@ -1245,8 +1246,8 @@ cipher_exit:
     return( ret );
 }
 
-int mbedtls_pk_write_key_pkcs8_encrypted_pem( const mbedtls_pk_context *ctx, 
-         mbedtls_pbes_t key_fmt, unsigned char *buf, size_t *psize, 
+int mbedtls_pk_write_key_pkcs8_encrypted_pem( const mbedtls_pk_context *ctx,
+         mbedtls_pbes_t key_fmt, unsigned char *buf, size_t *psize,
          mbedtls_cipher_type_t enc_alg, mbedtls_md_type_t md_alg, int iterations,
          const unsigned char *pwd, size_t pwd_len,
          int (*f_rng)(void *, unsigned char *, size_t),
