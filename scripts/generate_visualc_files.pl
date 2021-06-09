@@ -103,6 +103,14 @@ my $vsx_sln_conf_entry_tpl = <<EOT;
 		{GUID}.Release|Win32.Build.0 = Release|Win32
 		{GUID}.Release|x64.ActiveCfg = Release|x64
 		{GUID}.Release|x64.Build.0 = Release|x64
+		{GUID}.SrtDebug|Win32.ActiveCfg = SrtDebug|Win32
+		{GUID}.SrtDebug|Win32.Build.0 = SrtDebug|Win32
+		{GUID}.SrtDebug|x64.ActiveCfg = SrtDebug|x64
+		{GUID}.SrtDebug|x64.Build.0 = SrtDebug|x64
+		{GUID}.SrtRelease|Win32.ActiveCfg = SrtRelease|Win32
+		{GUID}.SrtRelease|Win32.Build.0 = SrtRelease|Win32
+		{GUID}.SrtRelease|x64.ActiveCfg = SrtRelease|x64
+		{GUID}.SrtRelease|x64.Build.0 = SrtRelease|x64
 EOT
 
 exit( main() );
