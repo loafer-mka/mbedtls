@@ -6,9 +6,20 @@
 /*.bak
 
 # Visual Studio artifacts
+*.suo
+*.sdf
+*.opensdf
 /.localhistory/
 /.vs/
 /Debug/
 /Release/
 /*.vcxproj.filters
 /*.vcxproj.user
+/_Win32_Debug/
+/_Win32_Release/
+/_Win32_SrtDebug/
+/_Win32_SrtRelease/
+/_x64_Debug/
+/_x64_Release/
+/_x64_SrtDebug/
+/_x64_SrtRelease/

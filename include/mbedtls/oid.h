@@ -276,7 +276,7 @@
  * Encryption algorithms
  */
 #define MBEDTLS_OID_DES_CBC                     MBEDTLS_OID_ISO_IDENTIFIED_ORG MBEDTLS_OID_OIW_SECSIG_ALG "\x07" /**< desCBC OBJECT IDENTIFIER ::= { iso(1) identified-organization(3) oiw(14) secsig(3) algorithms(2) 7 } */
-#define MBEDTLS_OID_RC2_CBC                     MBEDTLS_OID_RSA_COMPANY "\x03\x02" /**< rc2-cbc OBJECT IDENTIFIER ::= { iso(1) member-body(2) -- us(840) rsadsi(113549) encryptionAlgorithm(3) 2 } */
+//#define MBEDTLS_OID_RC2_CBC                     MBEDTLS_OID_RSA_COMPANY "\x03\x02" /**< rc2-cbc OBJECT IDENTIFIER ::= { iso(1) member-body(2) -- us(840) rsadsi(113549) encryptionAlgorithm(3) 2 } */
 #define MBEDTLS_OID_DES_EDE3_CBC                MBEDTLS_OID_RSA_COMPANY "\x03\x07" /**< des-ede3-cbc OBJECT IDENTIFIER ::= { iso(1) member-body(2) -- us(840) rsadsi(113549) encryptionAlgorithm(3) 7 } */
 #define MBEDTLS_OID_AES                         MBEDTLS_OID_NIST_ALG "\x01" /** aes OBJECT IDENTIFIER ::= { joint-iso-itu-t(2) country(16) us(840) organization(1) gov(101) csor(3) nistAlgorithm(4) 1 } */
 #define MBEDTLS_OID_AES128_CBC                  MBEDTLS_OID_AES "\x02" /** id-aes128-cbc     OBJECT IDENTIFIER ::= { aes 2 } */
@@ -668,6 +668,7 @@ int mbedtls_oid_get_oid_by_cipher_alg( mbedtls_cipher_type_t cipher_alg, const c
  */
 int mbedtls_oid_get_pkcs12_pbe_alg( const mbedtls_asn1_buf *oid, mbedtls_md_type_t *md_alg,
                             mbedtls_cipher_type_t *cipher_alg );
+
 /**
  * \brief          Translate md_type and cipher_type into PKCS#12 PBE
  *                 algorithm OID
@@ -681,8 +682,9 @@ int mbedtls_oid_get_pkcs12_pbe_alg( const mbedtls_asn1_buf *oid, mbedtls_md_type
  */
 int mbedtls_oid_get_oid_by_pkcs12_pbe_alg( mbedtls_md_type_t md_alg,
              mbedtls_cipher_type_t cipher_alg, const char **oid, size_t *olen );
+#endif /* MBEDTLS_PKCS12_C */
 
-
+#if defined(MBEDTLS_PKCS5_C)
 /**
  * \brief          Translate PKCS#5 PBES1 algorithm OID into md_type and
  *                 cipher_type
@@ -708,7 +710,7 @@ int mbedtls_oid_get_pkcs5_pbes1_alg( const mbedtls_asn1_buf *oid, mbedtls_md_typ
  */
 int mbedtls_oid_get_oid_by_pkcs5_pbes1_alg( mbedtls_md_type_t md_alg,
              mbedtls_cipher_type_t cipher_alg, const char **oid, size_t *olen );
-#endif /* MBEDTLS_PKCS12_C */
+#endif /* MBEDTLS_PKCS5_C */
 
 #ifdef __cplusplus
 }

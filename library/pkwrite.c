@@ -96,14 +96,14 @@ static int pk_write_rsa_pubkey( unsigned char **p, unsigned char *start,
         goto end_of_export;
     len += ret;
 
-    /* Do not write SEQUENCE header here - this function may be used as part
-     * of storing the private key, where N and E are parts of entire key */
-
 end_of_export:
 
     mbedtls_mpi_free( &T );
     if( ret < 0 )
         return( ret );
+
+    /* Do not write SEQUENCE header here - this function may be used as part
+     * of storing the private key, where N and E are parts of entire key */
 
     return( (int) len );
 }
