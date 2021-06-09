@@ -45,6 +45,7 @@
 #define MBEDTLS_ERR_PEM_PASSWORD_MISMATCH                 -0x1380  /**< Given private key password does not allow for correct decryption. */
 #define MBEDTLS_ERR_PEM_FEATURE_UNAVAILABLE               -0x1400  /**< Unavailable feature, e.g. hashing/encryption combination. */
 #define MBEDTLS_ERR_PEM_BAD_INPUT_DATA                    -0x1480  /**< Bad input parameters to function. */
+#define MBEDTLS_ERR_PEM_INVALID_INPUT_LENGTH              -0x1500  /**< Invalid data input length. */
 /* \} name */
 
 #ifdef __cplusplus

@@ -46,8 +46,7 @@ void mbedtls_pem_init( mbedtls_pem_context *ctx )
     memset( ctx, 0, sizeof( mbedtls_pem_context ) );
 }
 
-#if defined(MBEDTLS_MD5_C) && defined(MBEDTLS_CIPHER_MODE_CBC) &&         \
-    ( defined(MBEDTLS_DES_C) || defined(MBEDTLS_AES_C) )
+#if defined(MBEDTLS_MD5_C) && defined(MBEDTLS_CIPHER_C)
 /*
  * Read a 16-byte hex string and convert it to binary
  */
@@ -131,114 +130,23 @@ exit:
     return( ret );
 }
 
-#if defined(MBEDTLS_DES_C)
-/*
- * Decrypt with DES-CBC, using PBKDF1 for key derivation
- */
-static int pem_des_decrypt( unsigned char des_iv[8],
-                            unsigned char *buf, size_t buflen,
-                            const unsigned char *pwd, size_t pwdlen )
-{
-    mbedtls_des_context des_ctx;
-    unsigned char des_key[8];
-    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-
-    mbedtls_des_init( &des_ctx );
-
-    if( ( ret = pem_pbkdf1( des_key, 8, des_iv, pwd, pwdlen ) ) != 0 )
-        goto exit;
-
-    if( ( ret = mbedtls_des_setkey_dec( &des_ctx, des_key ) ) != 0 )
-        goto exit;
-    ret = mbedtls_des_crypt_cbc( &des_ctx, MBEDTLS_DES_DECRYPT, buflen,
-                     des_iv, buf, buf );
-
-exit:
-    mbedtls_des_free( &des_ctx );
-    mbedtls_platform_zeroize( des_key, 8 );
-
-    return( ret );
-}
-
-/*
- * Decrypt with 3DES-CBC, using PBKDF1 for key derivation
- */
-static int pem_des3_decrypt( unsigned char des3_iv[8],
-                             unsigned char *buf, size_t buflen,
-                             const unsigned char *pwd, size_t pwdlen )
-{
-    mbedtls_des3_context des3_ctx;
-    unsigned char des3_key[24];
-    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-
-    mbedtls_des3_init( &des3_ctx );
-
-    if( ( ret = pem_pbkdf1( des3_key, 24, des3_iv, pwd, pwdlen ) ) != 0 )
-        goto exit;
-
-    if( ( ret = mbedtls_des3_set3key_dec( &des3_ctx, des3_key ) ) != 0 )
-        goto exit;
-    ret = mbedtls_des3_crypt_cbc( &des3_ctx, MBEDTLS_DES_DECRYPT, buflen,
-                     des3_iv, buf, buf );
-
-exit:
-    mbedtls_des3_free( &des3_ctx );
-    mbedtls_platform_zeroize( des3_key, 24 );
-
-    return( ret );
-}
-#endif /* MBEDTLS_DES_C */
-
-#if defined(MBEDTLS_AES_C)
-/*
- * Decrypt with AES-XXX-CBC, using PBKDF1 for key derivation
- */
-static int pem_aes_decrypt( unsigned char aes_iv[16], unsigned int keylen,
-                            unsigned char *buf, size_t buflen,
-                            const unsigned char *pwd, size_t pwdlen )
-{
-    mbedtls_aes_context aes_ctx;
-    unsigned char aes_key[32];
-    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-
-    mbedtls_aes_init( &aes_ctx );
-
-    if( ( ret = pem_pbkdf1( aes_key, keylen, aes_iv, pwd, pwdlen ) ) != 0 )
-        goto exit;
-
-    if( ( ret = mbedtls_aes_setkey_dec( &aes_ctx, aes_key, keylen * 8 ) ) != 0 )
-        goto exit;
-    ret = mbedtls_aes_crypt_cbc( &aes_ctx, MBEDTLS_AES_DECRYPT, buflen,
-                     aes_iv, buf, buf );
-
-exit:
-    mbedtls_aes_free( &aes_ctx );
-    mbedtls_platform_zeroize( aes_key, keylen );
-
-    return( ret );
-}
-#endif /* MBEDTLS_AES_C */
-
-#endif /* MBEDTLS_MD5_C && MBEDTLS_CIPHER_MODE_CBC &&
-          ( MBEDTLS_AES_C || MBEDTLS_DES_C ) */
+#endif /* MBEDTLS_MD5_C && MBEDTLS_CIPHER_C */
 
 int mbedtls_pem_read_buffer( mbedtls_pem_context *ctx, const char *header, const char *footer,
                      const unsigned char *data, const unsigned char *pwd,
                      size_t pwdlen, size_t *use_len )
 {
     int ret, enc;
-    size_t len;
+    size_t len, iv_len = 0;
     unsigned char *buf;
     const unsigned char *s1, *s2, *end;
-#if defined(MBEDTLS_MD5_C) && defined(MBEDTLS_CIPHER_MODE_CBC) &&         \
-    ( defined(MBEDTLS_DES_C) || defined(MBEDTLS_AES_C) )
+#if defined(MBEDTLS_MD5_C) && defined(MBEDTLS_CIPHER_C)
     unsigned char pem_iv[16];
-    mbedtls_cipher_type_t enc_alg = MBEDTLS_CIPHER_NONE;
+    const mbedtls_cipher_info_t *cipher_info = NULL;
 #else
     ((void) pwd);
     ((void) pwdlen);
-#endif /* MBEDTLS_MD5_C && MBEDTLS_CIPHER_MODE_CBC &&
-          ( MBEDTLS_AES_C || MBEDTLS_DES_C ) */
+#endif /* MBEDTLS_MD5_C && MBEDTLS_CIPHER_C */
 
     if( ctx == NULL )
         return( MBEDTLS_ERR_PEM_BAD_INPUT_DATA );
@@ -270,8 +178,7 @@ int mbedtls_pem_read_buffer( mbedtls_pem_context *ctx, const char *header, const
 
     if( s2 - s1 >= 22 && memcmp( s1, "Proc-Type: 4,ENCRYPTED", 22 ) == 0 )
     {
-#if defined(MBEDTLS_MD5_C) && defined(MBEDTLS_CIPHER_MODE_CBC) &&         \
-    ( defined(MBEDTLS_DES_C) || defined(MBEDTLS_AES_C) )
+#if defined(MBEDTLS_MD5_C) && defined(MBEDTLS_CIPHER_C)
         enc++;
 
         s1 += 22;
@@ -279,53 +186,33 @@ int mbedtls_pem_read_buffer( mbedtls_pem_context *ctx, const char *header, const
         if( *s1 == '\n' ) s1++;
         else return( MBEDTLS_ERR_PEM_INVALID_DATA );
 
-
-#if defined(MBEDTLS_DES_C)
-        if( s2 - s1 >= 23 && memcmp( s1, "DEK-Info: DES-EDE3-CBC,", 23 ) == 0 )
+        if( s2 - s1 >= 9 && memcmp( s1, "DEK-Info:", 9 ) == 0 )
         {
-            enc_alg = MBEDTLS_CIPHER_DES_EDE3_CBC;
+                unsigned char cipher[ 32 ];
+                const unsigned char *tmp1 = s1 + 9;
+                unsigned char *tmp2 = cipher;
 
-            s1 += 23;
-            if( s2 - s1 < 16 || pem_get_iv( s1, pem_iv, 8 ) != 0 )
-                return( MBEDTLS_ERR_PEM_INVALID_ENC_IV );
+                while ( tmp1 < s2 && ' ' == *tmp1 ) tmp1++;
+                while ( tmp1 < s2 && tmp2 < cipher + sizeof(cipher)-1
+                        && ',' != *tmp1 && ' ' < *tmp1 ) *tmp2++ = *tmp1++;
+                *tmp2 = '\0';
+                s1 = tmp1 + ( ',' == *tmp1 ? 1 : 0 ); /* skip comma */
 
-            s1 += 16;
+                cipher_info = mbedtls_cipher_info_from_string((const char*)cipher);
+                if ( NULL != cipher_info )
+                {
+                    iv_len = cipher_info->iv_size;
+                    if ( 0 == iv_len ) iv_len = cipher_info->block_size;
+                    if( s2 - s1 < (int)iv_len*2
+                        || pem_get_iv( s1, pem_iv, iv_len) != 0 )
+                    {
+                        return( MBEDTLS_ERR_PEM_INVALID_ENC_IV );
+                    }
+                    s1 += iv_len*2;
+                }
         }
-        else if( s2 - s1 >= 18 && memcmp( s1, "DEK-Info: DES-CBC,", 18 ) == 0 )
-        {
-            enc_alg = MBEDTLS_CIPHER_DES_CBC;
 
-            s1 += 18;
-            if( s2 - s1 < 16 || pem_get_iv( s1, pem_iv, 8) != 0 )
-                return( MBEDTLS_ERR_PEM_INVALID_ENC_IV );
-
-            s1 += 16;
-        }
-#endif /* MBEDTLS_DES_C */
-
-#if defined(MBEDTLS_AES_C)
-        if( s2 - s1 >= 14 && memcmp( s1, "DEK-Info: AES-", 14 ) == 0 )
-        {
-            if( s2 - s1 < 22 )
-                return( MBEDTLS_ERR_PEM_UNKNOWN_ENC_ALG );
-            else if( memcmp( s1, "DEK-Info: AES-128-CBC,", 22 ) == 0 )
-                enc_alg = MBEDTLS_CIPHER_AES_128_CBC;
-            else if( memcmp( s1, "DEK-Info: AES-192-CBC,", 22 ) == 0 )
-                enc_alg = MBEDTLS_CIPHER_AES_192_CBC;
-            else if( memcmp( s1, "DEK-Info: AES-256-CBC,", 22 ) == 0 )
-                enc_alg = MBEDTLS_CIPHER_AES_256_CBC;
-            else
-                return( MBEDTLS_ERR_PEM_UNKNOWN_ENC_ALG );
-
-            s1 += 22;
-            if( s2 - s1 < 32 || pem_get_iv( s1, pem_iv, 16 ) != 0 )
-                return( MBEDTLS_ERR_PEM_INVALID_ENC_IV );
-
-            s1 += 32;
-        }
-#endif /* MBEDTLS_AES_C */
-
-        if( enc_alg == MBEDTLS_CIPHER_NONE )
+        if( NULL == cipher_info )
             return( MBEDTLS_ERR_PEM_UNKNOWN_ENC_ALG );
 
         if( *s1 == '\r' ) s1++;
@@ -333,8 +220,7 @@ int mbedtls_pem_read_buffer( mbedtls_pem_context *ctx, const char *header, const
         else return( MBEDTLS_ERR_PEM_INVALID_DATA );
 #else
         return( MBEDTLS_ERR_PEM_FEATURE_UNAVAILABLE );
-#endif /* MBEDTLS_MD5_C && MBEDTLS_CIPHER_MODE_CBC &&
-          ( MBEDTLS_AES_C || MBEDTLS_DES_C ) */
+#endif /* MBEDTLS_MD5_C && MBEDTLS_CIPHER_C */
     }
 
     if( s1 >= s2 )
@@ -357,8 +243,7 @@ int mbedtls_pem_read_buffer( mbedtls_pem_context *ctx, const char *header, const
 
     if( enc != 0 )
     {
-#if defined(MBEDTLS_MD5_C) && defined(MBEDTLS_CIPHER_MODE_CBC) &&         \
-    ( defined(MBEDTLS_DES_C) || defined(MBEDTLS_AES_C) )
+#if defined(MBEDTLS_MD5_C) && defined(MBEDTLS_CIPHER_C)
         if( pwd == NULL )
         {
             mbedtls_platform_zeroize( buf, len );
@@ -368,21 +253,38 @@ int mbedtls_pem_read_buffer( mbedtls_pem_context *ctx, const char *header, const
 
         ret = 0;
 
-#if defined(MBEDTLS_DES_C)
-        if( enc_alg == MBEDTLS_CIPHER_DES_EDE3_CBC )
-            ret = pem_des3_decrypt( pem_iv, buf, len, pwd, pwdlen );
-        else if( enc_alg == MBEDTLS_CIPHER_DES_CBC )
-            ret = pem_des_decrypt( pem_iv, buf, len, pwd, pwdlen );
-#endif /* MBEDTLS_DES_C */
+        if( NULL != cipher_info )
+        {
+            mbedtls_cipher_context_t cipher_ctx;
+            unsigned char cipher_key[ MBEDTLS_MAX_KEY_LENGTH ];
 
-#if defined(MBEDTLS_AES_C)
-        if( enc_alg == MBEDTLS_CIPHER_AES_128_CBC )
-            ret = pem_aes_decrypt( pem_iv, 16, buf, len, pwd, pwdlen );
-        else if( enc_alg == MBEDTLS_CIPHER_AES_192_CBC )
-            ret = pem_aes_decrypt( pem_iv, 24, buf, len, pwd, pwdlen );
-        else if( enc_alg == MBEDTLS_CIPHER_AES_256_CBC )
-            ret = pem_aes_decrypt( pem_iv, 32, buf, len, pwd, pwdlen );
-#endif /* MBEDTLS_AES_C */
+            mbedtls_cipher_init( &cipher_ctx );
+            mbedtls_cipher_setup( &cipher_ctx, cipher_info );
+
+            if( ( ret = pem_pbkdf1( cipher_key, cipher_info->key_bitlen/8,
+                            pem_iv, pwd, pwdlen ) ) != 0 )
+                goto cipher_exit;
+
+            if( ( ret = mbedtls_cipher_setkey( &cipher_ctx, cipher_key,
+                            cipher_info->key_bitlen, MBEDTLS_DECRYPT ) ) != 0 )
+                goto cipher_exit;
+
+            /* encrypted buffer is padded, so in-place decrypting is OK */
+            ret = mbedtls_cipher_crypt( &cipher_ctx, pem_iv, iv_len,
+                            buf, len, buf, &len );
+
+            /* on wrong (misaligned) length */
+            if ( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA == ret )
+                ret = MBEDTLS_ERR_PEM_INVALID_INPUT_LENGTH;
+
+            /* dirty results and damaged padding bytes due to wrong password */
+            if ( MBEDTLS_ERR_CIPHER_INVALID_PADDING == ret )
+                ret = MBEDTLS_ERR_PEM_PASSWORD_MISMATCH;
+
+        cipher_exit:
+            mbedtls_cipher_free( &cipher_ctx );
+            mbedtls_platform_zeroize( cipher_key, sizeof(cipher_key) );
+        }
 
         if( ret != 0 )
         {
@@ -406,8 +308,7 @@ int mbedtls_pem_read_buffer( mbedtls_pem_context *ctx, const char *header, const
         mbedtls_platform_zeroize( buf, len );
         mbedtls_free( buf );
         return( MBEDTLS_ERR_PEM_FEATURE_UNAVAILABLE );
-#endif /* MBEDTLS_MD5_C && MBEDTLS_CIPHER_MODE_CBC &&
-          ( MBEDTLS_AES_C || MBEDTLS_DES_C ) */
+#endif /* MBEDTLS_MD5_C && MBEDTLS_CIPHER_C */
     }
 
     ctx->buf = buf;
