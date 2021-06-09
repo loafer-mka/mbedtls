@@ -138,6 +138,35 @@ int mbedtls_pem_write_buffer( const char *header, const char *footer,
                       unsigned char *buf, size_t buf_len, size_t *olen );
 #endif /* MBEDTLS_PEM_WRITE_C */
 
+#if defined(MBEDTLS_MD5_C) && defined(MBEDTLS_CIPHER_MODE_CBC) &&         \
+    ( defined(MBEDTLS_DES_C) || defined(MBEDTLS_AES_C) )
+/**
+ * \brief       Read a buffer for PEM information and store the resulting
+ *              data into the specified context buffers.
+ *
+ * \param ctx       context to use
+ * \param header    header string to seek and expect
+ * \param footer    footer string to seek and expect
+ * \param data      source data to look in (must be nul-terminated)
+ * \param pwd       password for decryption (can be NULL)
+ * \param pwdlen    length of password
+ * \param use_len   destination for total length used (set after header is
+ *                  correctly read, so unless you get
+ *                  MBEDTLS_ERR_PEM_BAD_INPUT_DATA or
+ *                  MBEDTLS_ERR_PEM_NO_HEADER_FOOTER_PRESENT, use_len is
+ *                  the length to skip)
+ *
+ * \note            Attempts to check password correctness by verifying if
+ *                  the decrypted text starts with an ASN.1 sequence of
+ *                  appropriate length
+ *
+ * \return          0 on success, or a specific PEM error code
+ */
+int mbedtls_pem_pbkdf1( unsigned char *key, size_t keylen,
+                       unsigned char *iv,
+                       const unsigned char *pwd, size_t pwdlen );
+#endif /* MBEDTLS_MD5_C && MBEDTLS_CIPHER_MODE_CBC && ( MBEDTLS_DES_C || MBEDTLS_AES_C ) */
+
 #ifdef __cplusplus
 }
 #endif

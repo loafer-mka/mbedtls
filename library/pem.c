@@ -72,7 +72,7 @@ static int pem_get_iv( const unsigned char *s, unsigned char *iv,
     return( 0 );
 }
 
-static int pem_pbkdf1( unsigned char *key, size_t keylen,
+int mbedtls_pem_pbkdf1( unsigned char *key, size_t keylen,
                        unsigned char *iv,
                        const unsigned char *pwd, size_t pwdlen )
 {
@@ -188,28 +188,28 @@ int mbedtls_pem_read_buffer( mbedtls_pem_context *ctx, const char *header, const
 
         if( s2 - s1 >= 9 && memcmp( s1, "DEK-Info:", 9 ) == 0 )
         {
-                unsigned char cipher[ 32 ];
-                const unsigned char *tmp1 = s1 + 9;
-                unsigned char *tmp2 = cipher;
+            unsigned char cipher[ 32 ];
+            const unsigned char *tmp1 = s1 + 9;
+            unsigned char *tmp2 = cipher;
 
-                while ( tmp1 < s2 && ' ' == *tmp1 ) tmp1++;
-                while ( tmp1 < s2 && tmp2 < cipher + sizeof(cipher)-1
-                        && ',' != *tmp1 && ' ' < *tmp1 ) *tmp2++ = *tmp1++;
-                *tmp2 = '\0';
-                s1 = tmp1 + ( ',' == *tmp1 ? 1 : 0 ); /* skip comma */
+            while ( tmp1 < s2 && ' ' == *tmp1 ) tmp1++;
+            while ( tmp1 < s2 && tmp2 < cipher + sizeof(cipher)-1
+                    && ',' != *tmp1 && ' ' < *tmp1 ) *tmp2++ = *tmp1++;
+            *tmp2 = '\0';
+            s1 = tmp1 + ( ',' == *tmp1 ? 1 : 0 ); /* skip comma */
 
-                cipher_info = mbedtls_cipher_info_from_string((const char*)cipher);
-                if ( NULL != cipher_info )
+            cipher_info = mbedtls_cipher_info_from_string((const char*)cipher);
+            if ( NULL != cipher_info )
+            {
+                iv_len = cipher_info->iv_size;
+                if ( 0 == iv_len ) iv_len = cipher_info->block_size;
+                if( s2 - s1 < (int)iv_len*2
+                    || pem_get_iv( s1, pem_iv, iv_len) != 0 )
                 {
-                    iv_len = cipher_info->iv_size;
-                    if ( 0 == iv_len ) iv_len = cipher_info->block_size;
-                    if( s2 - s1 < (int)iv_len*2
-                        || pem_get_iv( s1, pem_iv, iv_len) != 0 )
-                    {
-                        return( MBEDTLS_ERR_PEM_INVALID_ENC_IV );
-                    }
-                    s1 += iv_len*2;
+                    return( MBEDTLS_ERR_PEM_INVALID_ENC_IV );
                 }
+                s1 += iv_len*2;
+            }
         }
 
         if( NULL == cipher_info )
@@ -261,7 +261,7 @@ int mbedtls_pem_read_buffer( mbedtls_pem_context *ctx, const char *header, const
             mbedtls_cipher_init( &cipher_ctx );
             mbedtls_cipher_setup( &cipher_ctx, cipher_info );
 
-            if( ( ret = pem_pbkdf1( cipher_key, cipher_info->key_bitlen/8,
+            if( ( ret = mbedtls_pem_pbkdf1( cipher_key, cipher_info->key_bitlen/8,
                             pem_iv, pwd, pwdlen ) ) != 0 )
                 goto cipher_exit;
 
