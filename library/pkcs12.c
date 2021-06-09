@@ -200,8 +200,9 @@ int mbedtls_pkcs12_pbe( mbedtls_asn1_buf *pbe_params, int mode,
     if( ( ret = mbedtls_cipher_setkey( &cipher_ctx, key, 8 * keylen, (mbedtls_operation_t) mode ) ) != 0 )
         goto exit;
 
-    if( ( ret = mbedtls_cipher_set_iv( &cipher_ctx, iv, cipher_info->iv_size ) ) != 0 )
-        goto exit;
+    if( 0 != cipher_info->iv_size ) /* rc4 has 0 == iv_size */
+        if( ( ret = mbedtls_cipher_set_iv( &cipher_ctx, iv, cipher_info->iv_size ) ) != 0 )
+            goto exit;
 
     if( ( ret = mbedtls_cipher_reset( &cipher_ctx ) ) != 0 )
         goto exit;

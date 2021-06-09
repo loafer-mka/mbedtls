@@ -585,6 +585,14 @@ static const oid_cipher_alg_t oid_cipher_alg[] =
         MBEDTLS_CIPHER_DES_EDE3_CBC,
     },
     {
+        OID_DESCRIPTOR( MBEDTLS_OID_AES128_CBC,              "aes128-cbc",       "AES128-CBC" ),
+        MBEDTLS_CIPHER_AES_128_CBC,
+    },
+    {
+        OID_DESCRIPTOR( MBEDTLS_OID_AES256_CBC,              "aes256-cbc",       "AES256-CBC" ),
+        MBEDTLS_CIPHER_AES_256_CBC,
+    },
+    {
         NULL_OID_DESCRIPTOR,
         MBEDTLS_CIPHER_NONE,
     },
@@ -740,6 +748,10 @@ static const oid_pkcs12_pbe_alg_t oid_pkcs12_pbe_alg[] =
         MBEDTLS_MD_SHA1,      MBEDTLS_CIPHER_DES_EDE_CBC,
     },
     {
+        OID_DESCRIPTOR( MBEDTLS_OID_PKCS12_PBE_SHA1_RC4_128, "pbeWithSHA1And128BitRC4", "PBE with SHA1 and RC4-128" ),
+        MBEDTLS_MD_SHA1,      MBEDTLS_CIPHER_ARC4_128,
+    },
+    {
         NULL_OID_DESCRIPTOR,
         MBEDTLS_MD_NONE, MBEDTLS_CIPHER_NONE,
     },
@@ -748,6 +760,33 @@ static const oid_pkcs12_pbe_alg_t oid_pkcs12_pbe_alg[] =
 FN_OID_TYPED_FROM_ASN1(oid_pkcs12_pbe_alg_t, pkcs12_pbe_alg, oid_pkcs12_pbe_alg)
 FN_OID_GET_ATTR2(mbedtls_oid_get_pkcs12_pbe_alg, oid_pkcs12_pbe_alg_t, pkcs12_pbe_alg, mbedtls_md_type_t, md_alg, mbedtls_cipher_type_t, cipher_alg)
 #endif /* MBEDTLS_PKCS12_C */
+
+#if defined( MBEDTLS_PKCS5_C )
+typedef struct {
+    mbedtls_oid_descriptor_t    descriptor;
+    mbedtls_md_type_t           md_alg;
+    mbedtls_cipher_type_t       cipher_alg;
+} oid_pkcs5_pbes1_alg_t;
+
+static const oid_pkcs5_pbes1_alg_t oid_pkcs5_pbes1_alg[] =
+{
+    {
+        OID_DESCRIPTOR( MBEDTLS_OID_PKCS5_PBE_SHA1_DES_CBC, "pbeWithSHA1AndDES-CBC", "PBE with SHA1 and DES" ),
+        MBEDTLS_MD_SHA1,      MBEDTLS_CIPHER_DES_CBC,
+    },
+    {
+        OID_DESCRIPTOR( MBEDTLS_OID_PKCS5_PBE_MD5_DES_CBC, "pbeWithMD5AndDES-CBC", "PBE with MD5 and DES" ),
+        MBEDTLS_MD_MD5,      MBEDTLS_CIPHER_DES_CBC,
+    },
+    {
+        NULL_OID_DESCRIPTOR,
+        MBEDTLS_MD_NONE, MBEDTLS_CIPHER_NONE,
+    },
+};
+
+FN_OID_TYPED_FROM_ASN1(oid_pkcs5_pbes1_alg_t, pkcs5_pbes1_alg, oid_pkcs5_pbes1_alg)
+FN_OID_GET_ATTR2(mbedtls_oid_get_pkcs5_pbes1_alg, oid_pkcs5_pbes1_alg_t, pkcs5_pbes1_alg, mbedtls_md_type_t, md_alg, mbedtls_cipher_type_t, cipher_alg)
+#endif /* MBEDTLS_PKCS5_C */
 
 #define OID_SAFE_SNPRINTF                               \
     do {                                                \
