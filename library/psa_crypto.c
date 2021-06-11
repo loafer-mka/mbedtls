@@ -1337,7 +1337,7 @@ psa_status_t psa_export_key( mbedtls_svc_key_id_t key,
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_status_t unlock_status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_key_slot_t *slot;
-    psa_key_attributes_t attributes = { 0 };
+    psa_key_attributes_t attributes = { { 0 }, 0, 0 };
 
     /* Reject a zero-length output buffer now, since this can never be a
      * valid key representation. This way we know that data must be a valid
@@ -1441,7 +1441,7 @@ psa_status_t psa_export_public_key( mbedtls_svc_key_id_t key,
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_status_t unlock_status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_key_slot_t *slot;
-    psa_key_attributes_t attributes = { 0 };
+    psa_key_attributes_t attributes = { { 0 }, 0, 0 };
 
     /* Reject a zero-length output buffer now, since this can never be a
      * valid key representation. This way we know that data must be a valid
@@ -2276,7 +2276,7 @@ static psa_status_t psa_mac_setup( psa_mac_operation_t *operation,
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_status_t unlock_status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_key_slot_t *slot;
-    psa_key_attributes_t attributes = { 0 };
+    psa_key_attributes_t attributes = { { 0 }, 0, 0 };
 
     /* A context must be freshly initialized before it can be set up. */
     if( operation->id != 0 )
@@ -2514,7 +2514,7 @@ static psa_status_t psa_sign_internal( mbedtls_svc_key_id_t key,
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_status_t unlock_status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_key_slot_t *slot;
-    psa_key_attributes_t attributes = { 0 };
+    psa_key_attributes_t attributes = { { 0 }, 0, 0 };
 
     *signature_length = 0;
 
@@ -2592,7 +2592,7 @@ static psa_status_t psa_verify_internal( mbedtls_svc_key_id_t key,
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_status_t unlock_status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_key_slot_t *slot;
-    psa_key_attributes_t attributes = { 0 };
+    psa_key_attributes_t attributes = { { 0 }, 0, 0 };
 
     status = psa_sign_verify_check_alg( input_is_message, alg );
     if( status != PSA_SUCCESS )
@@ -3103,7 +3103,7 @@ static psa_status_t psa_cipher_setup( psa_cipher_operation_t *operation,
     psa_key_usage_t usage = ( cipher_operation == MBEDTLS_ENCRYPT ?
                               PSA_KEY_USAGE_ENCRYPT :
                               PSA_KEY_USAGE_DECRYPT );
-    psa_key_attributes_t attributes = { 0 };
+    psa_key_attributes_t attributes = { { 0 }, 0, 0 };
 
     /* A context must be freshly initialized before it can be set up. */
     if( operation->id != 0 )
@@ -3337,7 +3337,7 @@ psa_status_t psa_aead_encrypt( mbedtls_svc_key_id_t key,
 {
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_key_slot_t *slot;
-    psa_key_attributes_t attributes = { 0 };
+    psa_key_attributes_t attributes = { { 0 }, 0, 0 };
 
     *ciphertext_length = 0;
 
@@ -3381,7 +3381,7 @@ psa_status_t psa_aead_decrypt( mbedtls_svc_key_id_t key,
 {
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
     psa_key_slot_t *slot;
-    psa_key_attributes_t attributes = { 0 };
+    psa_key_attributes_t attributes = { { 0 }, 0, 0 };
 
     *plaintext_length = 0;
 
@@ -3872,7 +3872,7 @@ static psa_status_t psa_generate_derived_key_internal(
     uint8_t *data = NULL;
     size_t bytes = PSA_BITS_TO_BYTES( bits );
     psa_status_t status;
-    psa_key_attributes_t attributes = { 0 };
+    psa_key_attributes_t attributes = { { 0 }, 0, 0 };
 
     if( ! key_type_is_raw_bytes( slot->attr.type ) )
         return( PSA_ERROR_INVALID_ARGUMENT );
