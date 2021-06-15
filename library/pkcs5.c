@@ -424,26 +424,28 @@ int mbedtls_pkcs5_pbkdf1( mbedtls_md_type_t md_type, const unsigned char *salt,
         return( ret );
 
     if( ( ret = mbedtls_md_starts( &md_ctx ) ) != 0 )
-        return( ret );
+        goto cleanup;
     if( ( ret = mbedtls_md_update( &md_ctx, pwd, pwd_len ) ) != 0 )
-        return( ret );
+        goto cleanup;
     if( ( ret = mbedtls_md_update( &md_ctx, salt, salt_len ) ) != 0 )
-        return( ret );
+        goto cleanup;
     if( ( ret = mbedtls_md_finish( &md_ctx, md ) ) != 0 )
-        return( ret );
+        goto cleanup;
 
     for ( i = 1; i < iterations; i++ ) {
         if( ( ret = mbedtls_md_starts( &md_ctx ) ) != 0 )
-            return( ret );
+            goto cleanup;
         if( ( ret = mbedtls_md_update( &md_ctx, md, md_len ) ) != 0 )
-            return( ret );
+            goto cleanup;
         if( ( ret = mbedtls_md_finish( &md_ctx, md ) ) != 0 )
-            return( ret );
+            goto cleanup;
     }
     memcpy( key, md, 8 );
     memcpy( iv, md + 8, 8 );
+cleanup:
+    mbedtls_md_free( &md_ctx );
     mbedtls_platform_zeroize( md, sizeof( md ) );
-    return( 0 );
+    return( ret );
 }
 
 #if defined(MBEDTLS_SELF_TEST)
