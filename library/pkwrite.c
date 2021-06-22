@@ -801,24 +801,44 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
     }
 
     switch ( key_format ) {
+    case ENCRYPTION_SCHEME_LEGACY:
+        /* ERROR! legacy encrytion available for PEM only */
+        ret = MBEDTLS_ERR_PK_BAD_INPUT_DATA;
+        goto cipher_end;
     case ENCRYPTION_SCHEME_PBES1:
         if (0 != mbedtls_oid_get_oid_by_pkcs5_pbes1_alg( md_alg, enc_alg,
                                                         &oid, &oid_len ))
         {
-            /* iv will be initialized later by key derivation procedure */
             ret = MBEDTLS_ERR_PK_BAD_INPUT_DATA;
             goto cipher_end;
-        }
+	}
+        /* iv will be initialized later by key derivation procedure */
         break;
     case ENCRYPTION_SCHEME_PKCS12:
         if (0 != mbedtls_oid_get_oid_by_pkcs12_pbe_alg( md_alg, enc_alg,
                                                         &oid, &oid_len ))
         {
-            /* iv will be initialized later by key derivation procedure */
             ret = MBEDTLS_ERR_PK_BAD_INPUT_DATA;
             goto cipher_end;
         }
+        /* iv will be initialized later by key derivation procedure */
 	break;
+    case ENCRYPTION_SCHEME_PBES1_AND_PKCS12:
+        if (0 == mbedtls_oid_get_oid_by_pkcs5_pbes1_alg( md_alg, enc_alg,
+                                                        &oid, &oid_len ))
+        {
+            /* iv will be initialized later by key derivation procedure */
+            key_format = ENCRYPTION_SCHEME_PBES1;
+        } else if (0 == mbedtls_oid_get_oid_by_pkcs12_pbe_alg( md_alg, enc_alg,
+                                                               &oid, &oid_len ))
+        {
+            /* iv will be initialized later by key derivation procedure */
+            key_format = ENCRYPTION_SCHEME_PKCS12;
+        } else {
+            ret = MBEDTLS_ERR_PK_BAD_INPUT_DATA;
+            goto cipher_end;
+        }
+        break;
     case ENCRYPTION_SCHEME_PBES2:
         /* generate IV */
         if( ( ret = f_rng( p_rng, iv, iv_len ) ) != 0 )
@@ -860,6 +880,12 @@ int mbedtls_pk_write_key_pkcs8_encrypted_der( const mbedtls_pk_context *key,
 
     /* generate cipher key */
     switch ( key_format ) {
+    case ENCRYPTION_SCHEME_LEGACY:
+    case ENCRYPTION_SCHEME_PBES1_AND_PKCS12:
+        /* ENCRYPTION_SCHEME_LEGACY and ENCRYPTION_SCHEME_PBES1_AND_PKCS12
+         * cannot be here; they are filtered out above */
+        ret = MBEDTLS_ERR_PK_BAD_INPUT_DATA;
+        goto cipher_end;
     case ENCRYPTION_SCHEME_PBES1:
         if( (ret = mbedtls_pkcs5_pbkdf1( md_alg, salt, salt_len, iterations,
                                          pwd, pwd_len, cipher_key, iv )) != 0 )
@@ -912,6 +938,11 @@ cipher_end:
 
     len1 = len2 = 0;
     switch ( key_format ) {
+    case ENCRYPTION_SCHEME_LEGACY:
+    case ENCRYPTION_SCHEME_PBES1_AND_PKCS12:
+        /* ENCRYPTION_SCHEME_LEGACY and ENCRYPTION_SCHEME_PBES1_AND_PKCS12
+         * cannot be here; they are filtered out above */
+        return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
     case ENCRYPTION_SCHEME_PBES1:
     case ENCRYPTION_SCHEME_PKCS12:
         /* iterations */
@@ -1146,7 +1177,7 @@ int mbedtls_pk_write_key_pkcs8_pem( const mbedtls_pk_context *key, unsigned char
     return( ret );
 }
 
-int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
+static int pk_write_key_legacy_encrypted_pem( const mbedtls_pk_context *ctx,
                                   unsigned char *buf, size_t *psize,
                                   mbedtls_cipher_type_t enc_alg,
                                   const unsigned char *pwd, size_t pwd_len,
@@ -1246,7 +1277,7 @@ cipher_exit:
     return( ret );
 }
 
-int mbedtls_pk_write_key_pkcs8_encrypted_pem( const mbedtls_pk_context *ctx,
+int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
          mbedtls_pbes_t key_fmt, unsigned char *buf, size_t *psize,
          mbedtls_cipher_type_t enc_alg, mbedtls_md_type_t md_alg, int iterations,
          const unsigned char *pwd, size_t pwd_len,
@@ -1260,8 +1291,15 @@ int mbedtls_pk_write_key_pkcs8_encrypted_pem( const mbedtls_pk_context *ctx,
     PK_VALIDATE_RET( ctx != NULL );
     PK_VALIDATE_RET( psize != NULL );
     PK_VALIDATE_RET( buf != NULL || size == 0 );
-    PK_VALIDATE_RET( pwd != NULL && pwd_len == 0 );
+    PK_VALIDATE_RET( pwd != NULL && pwd_len != 0 );
     PK_VALIDATE_RET( f_rng != NULL );
+
+    if ( ENCRYPTION_SCHEME_LEGACY == key_fmt ) {
+	    /* md_alg and iterations are unused */
+	    return pk_write_key_legacy_encrypted_pem( ctx, buf, psize,
+                                                      enc_alg, pwd, pwd_len,
+                                                      f_rng, p_rng );
+    }
 
     /* 'pder' will be updated by mbedtls_pk_write_key_pkcs8_encrypted_der()
      * because some padding will be reserved at the end of buffer */

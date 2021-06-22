@@ -196,9 +196,11 @@ typedef struct mbedtls_pk_context
  * \brief           Encryption scheme for pkcs8 private key format
  */
 typedef enum mbedtls_pbes_t {
-    ENCRYPTION_SCHEME_PBES2 = 0,  /**< Actual PBES2 scheme                      */
-    ENCRYPTION_SCHEME_PKCS12,     /**< PBES1 with some cipher/digest extensions */
-    ENCRYPTION_SCHEME_PBES1       /**< old PBES1 scheme */
+    ENCRYPTION_SCHEME_LEGACY = 0,       /**< legacy PEM encryption        */
+    ENCRYPTION_SCHEME_PBES1,            /**< old PBES1 scheme             */
+    ENCRYPTION_SCHEME_PKCS12,           /**< PBES1+PKCS12 extensions      */
+    ENCRYPTION_SCHEME_PBES1_AND_PKCS12, /**< PBES1 or PBES1+PKCS12 scheme */
+    ENCRYPTION_SCHEME_PBES2,            /**< Actual PBES2 scheme          */
 } mbedtls_pbes_t;
 
 #if defined(MBEDTLS_ECDSA_C) && defined(MBEDTLS_ECP_RESTARTABLE)
@@ -805,7 +807,7 @@ int mbedtls_pk_write_key_pkcs8_der( const mbedtls_pk_context *key, unsigned char
  *                   it will contain actual size of PEM data.
  * \param enc_alg    Cipher algorithm
  * \param md_alg     Hash algorithm used
- * \param iterations Iteration count (for key derivation; 2048 for example)
+ * \param iterations Key derivation iterations count (2048 for example)
  * \param pwd        Password for encryption.
  *                   The empty password is not supported.
  * \param pwd_len    Size of the password in bytes.
@@ -873,32 +875,6 @@ int mbedtls_pk_write_key_pem( const mbedtls_pk_context *ctx, unsigned char *buf,
  */
 int mbedtls_pk_write_key_pkcs8_pem( const mbedtls_pk_context *key, unsigned char *buf, size_t size );
 
-
-/**
- * \brief           Write a private key to a encrypted 'traditional' PEM string like as:
- *                  -----BEGIN RSA PRIVATE KEY-----
- *                  Proc-Type: 4,ENCRYPTED
- *                  DEK-Info: AES-128-CBC,...
- *
- * \param ctx       PK context which must contain a valid private key.
- * \param buf       Buffer to write to. The output includes a
- *                  terminating null byte.
- * \param psize     Pointer to the size of the buffer in bytes,
- *                  it will contain actual size of PEM data.
- * \param enc_alg   Cipher algorithm
- * \param pwd       Password for encryption.
- *                  The empty password is not supported.
- * \param pwdlen    Size of the password in bytes.
- * \param f_rng     RNG function
- * \param p_rng     RNG parameter
- *
- * \return          0 if successful, or a specific error code
- */
-int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx, 
-         unsigned char *buf, size_t *psize, mbedtls_cipher_type_t enc_alg, 
-         const unsigned char *pwd, size_t pwd_len,
-         int (*f_rng)(void *, unsigned char *, size_t), void *p_rng );
-
 /**
  * \brief            Write a private key to a encrypted PKCS#8 PEM string.
  *
@@ -909,8 +885,8 @@ int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
  * \param psize      Pointer to the size of the buffer in bytes,
  *                   it will contain actual size of PEM data.
  * \param enc_alg    Cipher algorithm
- * \param md_alg     Hash algorithm used
- * \param iterations Iteration count (for key derivation)
+ * \param md_alg     Hash algorithm used (unused if key_fmt is legacy)
+ * \param iterations Key derivation iterations count (unused if key_fmt is legacy)
  * \param pwd        Password for encryption.
  *                   The empty password is not supported.
  * \param pwd_len    Size of the password in bytes.
@@ -919,8 +895,8 @@ int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
  *
  * \return          0 if successful, or a specific error code
  */
-int mbedtls_pk_write_key_pkcs8_encrypted_pem( const mbedtls_pk_context *ctx, 
-         mbedtls_pbes_t key_fmt, unsigned char *buf, size_t *psize, 
+int mbedtls_pk_write_key_encrypted_pem( const mbedtls_pk_context *ctx,
+         mbedtls_pbes_t key_fmt, unsigned char *buf, size_t *psize,
          mbedtls_cipher_type_t enc_alg, mbedtls_md_type_t md_alg, int iterations,
          const unsigned char *pwd, size_t pwd_len,
          int (*f_rng)(void *, unsigned char *, size_t), void *p_rng );
